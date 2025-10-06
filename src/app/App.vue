@@ -12,14 +12,14 @@
           Last Update {{ lastUpdated }}
         </div>
         <div class="topbar__actions">
-          <UiButton variant="toolbar" size="icon-lg" type="button" aria-label="Open help">
-            <HelpCircle :size="16" />
+          <UiButton variant="solid" size="md" icon-only type="button" aria-label="Open help">
+            <HelpCircle :size="24" />
           </UiButton>
-          <UiButton variant="toolbar" size="icon-lg" type="button" aria-label="Toggle theme">
-            <MoonStar :size="16" />
+          <UiButton variant="solid" size="md" icon-only type="button" aria-label="Toggle theme">
+            <MoonStar :size="24" />
           </UiButton>
-          <UiButton variant="toolbar" size="icon-lg" type="button" aria-label="User menu">
-            <UserRound :size="16" />
+          <UiButton variant="solid" size="md" icon-only type="button" aria-label="User menu">
+            <UserRound :size="24" />
           </UiButton>
         </div>
       </header>

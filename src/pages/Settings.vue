@@ -12,7 +12,8 @@
             :key="format"
             @click="updateSetting('defaultImageFormat', format)"
             type="button"
-            :variant="settings.defaultImageFormat === format ? 'primary' : 'default'"
+            variant="solid"
+            :tone="settings.defaultImageFormat === format ? 'accent' : 'default'"
           >
             <span class="mono" style="letter-spacing: 0.24em;">{{ format.toUpperCase() }}</span>
           </UiButton>
@@ -78,7 +79,7 @@
           <p class="body-text text-text-muted">
             Temporary assets live in IndexedDB for quick retrieval. Clear storage to reclaim space after exports.
           </p>
-          <UiButton type="button" @click="clearStorage">Clear Temp Storage</UiButton>
+          <UiButton type="button" variant="destructive" @click="clearStorage">Clear Temp Storage</UiButton>
         </div>
       </div>
     </div>

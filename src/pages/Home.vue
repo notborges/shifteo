@@ -14,10 +14,10 @@
             </p>
           </div>
           <div class="flex flex-wrap gap-3">
-            <UiButton to="/images" variant="primary">
+            <UiButton to="/images" variant="solid" tone="accent">
               Launch Image Shift
             </UiButton>
-            <UiButton to="/documents" variant="ghost">
+            <UiButton to="/documents" variant="quiet">
               Document Ops
             </UiButton>
           </div>

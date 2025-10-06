@@ -36,8 +36,9 @@
         <UiButton
           v-if="job.status === 'completed' && job.result"
           @click="emit('download', job)"
-          variant="subtle"
-          size="icon"
+          variant="quiet"
+          size="sm"
+          icon-only
           type="button"
           title="Download"
         >
@@ -46,8 +47,10 @@
         <UiButton
           v-if="job.status === 'error'"
           @click="emit('retry', job.id)"
-          variant="subtle"
-          size="icon"
+          variant="quiet"
+          tone="warning"
+          size="sm"
+          icon-only
           type="button"
           title="Retry"
         >
@@ -55,8 +58,9 @@
         </UiButton>
         <UiButton
           @click="emit('remove', job.id)"
-          variant="subtle"
-          size="icon"
+          variant="destructive"
+          size="sm"
+          icon-only
           type="button"
           title="Remove"
         >

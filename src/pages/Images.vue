@@ -41,7 +41,7 @@
         <div class="panel__footer" v-if="queueStore.totalJobs > 0">
           <div class="flex w-full items-center justify-between">
             <span>Throughput stable</span>
-            <UiButton variant="ghost" type="button" @click="queueStore.clearAll()">Clear Queue</UiButton>
+            <UiButton variant="quiet" size="sm" type="button" @click="queueStore.clearAll()">Clear Queue</UiButton>
           </div>
         </div>
       </div>
@@ -84,11 +84,12 @@
             :key="format.value"
             type="button"
             @click="options.to = format.value"
-            :variant="options.to === format.value ? 'primary' : 'default'"
+            variant="solid"
+            :tone="options.to === format.value ? 'accent' : 'default'"
           >
             <span class="mono" style="letter-spacing: 0.24em;">{{ format.value.toUpperCase() }}</span>
             <span
-              :class="['block text-[11px]', options.to === format.value ? 'text-[#1b1b1b]' : 'text-text-muted']"
+              :class="['block text-[11px]', options.to === format.value ? 'text-[#070909]' : 'text-text-muted']"
               style="letter-spacing: 0.2em;"
             >{{ format.desc }}</span>
           </UiButton>
@@ -143,7 +144,9 @@
           </div>
           <div class="flex flex-col gap-3 md:flex-row md:items-center">
             <UiButton
-              variant="primary"
+              variant="solid"
+              tone="accent"
+              size="lg"
               @click="startConversion"
               :disabled="queueStore.pendingJobs.length === 0 || queueStore.hasActiveJobs"
             >
@@ -155,6 +158,7 @@
               v-if="queueStore.completedJobs.length > 0"
               @click="downloadAll"
               type="button"
+              variant="solid"
             >
               Download All ({{ queueStore.completedJobs.length }})
             </UiButton>
