@@ -33,32 +33,35 @@
         <span v-if="job.result">{{ sizeChangePercent }}</span>
       </div>
       <div class="file-row__actions">
-        <button
+        <UiButton
           v-if="job.status === 'completed' && job.result"
           @click="emit('download', job)"
-          class="file-row__button"
+          variant="subtle"
+          size="icon"
           type="button"
           title="Download"
         >
           <Download :size="16" />
-        </button>
-        <button
+        </UiButton>
+        <UiButton
           v-if="job.status === 'error'"
           @click="emit('retry', job.id)"
-          class="file-row__button"
+          variant="subtle"
+          size="icon"
           type="button"
           title="Retry"
         >
           <RotateCw :size="16" />
-        </button>
-        <button
+        </UiButton>
+        <UiButton
           @click="emit('remove', job.id)"
-          class="file-row__button"
+          variant="subtle"
+          size="icon"
           type="button"
           title="Remove"
         >
           <X :size="16" />
-        </button>
+        </UiButton>
       </div>
     </div>
 
@@ -75,6 +78,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Download, RotateCw, X, ArrowRight } from 'lucide-vue-next'
+import UiButton from '@/components/ui/UiButton.vue'
 import type { Job } from '@/workers/types'
 import { formatFileSize } from '@/utils/format'
 

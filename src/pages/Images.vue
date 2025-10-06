@@ -41,7 +41,7 @@
         <div class="panel__footer" v-if="queueStore.totalJobs > 0">
           <div class="flex w-full items-center justify-between">
             <span>Throughput stable</span>
-            <button class="button button--ghost" type="button" @click="queueStore.clearAll()">Clear Queue</button>
+            <UiButton variant="ghost" type="button" @click="queueStore.clearAll()">Clear Queue</UiButton>
           </div>
         </div>
       </div>
@@ -79,17 +79,19 @@
           <span class="panel__meta">Select one target</span>
         </div>
         <div class="panel__body grid sm:grid-cols-2 gap-4">
-          <button
+          <UiButton
             v-for="format in formatOptions"
             :key="format.value"
             type="button"
             @click="options.to = format.value"
-            class="button"
-            :class="options.to === format.value ? 'button--primary' : ''"
+            :variant="options.to === format.value ? 'primary' : 'default'"
           >
             <span class="mono" style="letter-spacing: 0.24em;">{{ format.value.toUpperCase() }}</span>
-            <span class="block text-[11px] text-text-muted" style="letter-spacing: 0.2em;">{{ format.desc }}</span>
-          </button>
+            <span
+              :class="['block text-[11px]', options.to === format.value ? 'text-[#1b1b1b]' : 'text-text-muted']"
+              style="letter-spacing: 0.2em;"
+            >{{ format.desc }}</span>
+          </UiButton>
         </div>
       </div>
 
@@ -140,23 +142,22 @@
             Conversion executes locally using thread-safe workers. Execution time scales with input size and requested format.
           </div>
           <div class="flex flex-col gap-3 md:flex-row md:items-center">
-            <button
+            <UiButton
+              variant="primary"
               @click="startConversion"
               :disabled="queueStore.pendingJobs.length === 0 || queueStore.hasActiveJobs"
-              class="button button--primary"
             >
               <span v-if="queueStore.hasActiveJobs">Shifting…</span>
               <span v-else-if="queueStore.pendingJobs.length > 0">Shift to {{ options.to.toUpperCase() }}</span>
               <span v-else>Select Files</span>
-            </button>
-            <button
+            </UiButton>
+            <UiButton
               v-if="queueStore.completedJobs.length > 0"
               @click="downloadAll"
-              class="button"
               type="button"
             >
               Download All ({{ queueStore.completedJobs.length }})
-            </button>
+            </UiButton>
           </div>
         </div>
       </div>
@@ -168,6 +169,7 @@
 import { ref, toRaw } from 'vue'
 import DropZone from '@/components/DropZone.vue'
 import FileListItem from '@/components/FileListItem.vue'
+import UiButton from '@/components/ui/UiButton.vue'
 import { useQueueStore } from '@/app/stores/queue'
 import { useSettingsStore } from '@/app/stores/settings'
 import { imageWorker } from '@/workers/imageWorkerManager'

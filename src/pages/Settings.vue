@@ -7,16 +7,15 @@
           <span class="panel__meta">Applies to new jobs</span>
         </div>
         <div class="panel__body grid grid-cols-2 gap-3">
-          <button
+          <UiButton
             v-for="format in formats"
             :key="format"
             @click="updateSetting('defaultImageFormat', format)"
             type="button"
-            class="button"
-            :class="settings.defaultImageFormat === format ? 'button--primary' : ''"
+            :variant="settings.defaultImageFormat === format ? 'primary' : 'default'"
           >
             <span class="mono" style="letter-spacing: 0.24em;">{{ format.toUpperCase() }}</span>
-          </button>
+          </UiButton>
         </div>
       </div>
 
@@ -79,7 +78,7 @@
           <p class="body-text text-text-muted">
             Temporary assets live in IndexedDB for quick retrieval. Clear storage to reclaim space after exports.
           </p>
-          <button class="button" type="button" @click="clearStorage">Clear Temp Storage</button>
+          <UiButton type="button" @click="clearStorage">Clear Temp Storage</UiButton>
         </div>
       </div>
     </div>
@@ -90,6 +89,7 @@
 import { ref, onMounted } from 'vue'
 import { useSettingsStore } from '@/app/stores/settings'
 import { getStorageStats, clearAllTempFiles } from '@/utils/idb'
+import UiButton from '@/components/ui/UiButton.vue'
 import { formatFileSize } from '@/utils/format'
 import type { ImageFormat } from '@/workers/types'
 

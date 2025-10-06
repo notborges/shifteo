@@ -14,12 +14,12 @@
             </p>
           </div>
           <div class="flex flex-wrap gap-3">
-            <RouterLink to="/images" class="button button--primary">
+            <UiButton to="/images" variant="primary">
               Launch Image Shift
-            </RouterLink>
-            <RouterLink to="/documents" class="button button--ghost">
+            </UiButton>
+            <UiButton to="/documents" variant="ghost">
               Document Ops
-            </RouterLink>
+            </UiButton>
           </div>
         </div>
         <div class="panel__footer">
@@ -95,4 +95,5 @@
 
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
+import UiButton from '@/components/ui/UiButton.vue'
 </script>

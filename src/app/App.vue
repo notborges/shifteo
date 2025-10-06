@@ -12,15 +12,15 @@
           Last Update {{ lastUpdated }}
         </div>
         <div class="topbar__actions">
-          <button class="topbar__button" type="button" aria-label="Open help">
+          <UiButton variant="toolbar" size="icon-lg" type="button" aria-label="Open help">
             <HelpCircle :size="16" />
-          </button>
-          <button class="topbar__button" type="button" aria-label="Toggle theme">
+          </UiButton>
+          <UiButton variant="toolbar" size="icon-lg" type="button" aria-label="Toggle theme">
             <MoonStar :size="16" />
-          </button>
-          <button class="topbar__button" type="button" aria-label="User menu">
+          </UiButton>
+          <UiButton variant="toolbar" size="icon-lg" type="button" aria-label="User menu">
             <UserRound :size="16" />
-          </button>
+          </UiButton>
         </div>
       </header>
 
@@ -39,6 +39,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import Sidebar from '@/components/Sidebar.vue'
 import BottomBar from '@/components/BottomBar.vue'
+import UiButton from '@/components/ui/UiButton.vue'
 import { useSettingsStore } from '@/app/stores/settings'
 import { HelpCircle, MoonStar, UserRound } from 'lucide-vue-next'
 
