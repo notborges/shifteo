@@ -1,0 +1,51 @@
+{
+  "name": "shifteo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@jsquash/avif": "latest",
+    "@jsquash/jpeg": "latest",
+    "@jsquash/oxipng": "latest",
+    "@jsquash/png": "latest",
+    "@jsquash/resize": "latest",
+    "@jsquash/webp": "latest",
+    "@pdfme/pdf-lib": "latest",
+    "@primevue/themes": "latest",
+    "comlink": "latest",
+    "idb": "latest",
+    "lucide-vue-next": "latest",
+    "mammoth": "latest",
+    "pdfjs-dist": "latest",
+    "pinia": "latest",
+    "primevue": "latest",
+    "vue": "latest",
+    "vue-router": "latest"
+  },
+  "devDependencies": {
+    "@playwright/test": "latest",
+    "@tailwindcss/vite": "latest",
+    "@vitejs/plugin-vue": "latest",
+    "@vitest/ui": "latest",
+    "autoprefixer": "latest",
+    "eslint": "latest",
+    "tailwindcss": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "vite-plugin-pwa": "latest",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.5.0",
+    "vitest": "latest",
+    "vue-tsc": "latest",
+    "workbox-build": "latest"
+  }
+}
