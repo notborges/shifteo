@@ -59,6 +59,13 @@ export const useQueueStore = defineStore('queue', {
       }
     },
 
+    updateJobStage(id: string, stage: string) {
+      const job = this.jobs.find(j => j.id === id)
+      if (job) {
+        job.stage = stage
+      }
+    },
+
     setJobError(id: string, error: string) {
       const job = this.jobs.find(j => j.id === id)
       if (job) {

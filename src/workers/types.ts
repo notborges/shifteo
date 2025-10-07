@@ -10,6 +10,7 @@ export interface ImageConvertOpts {
   width?: number // px
   height?: number // px
   longEdge?: number // px (will preserve aspect ratio)
+  scale?: number // multiplier (e.g., 0.5 = 50%, 2.0 = 200%)
   keepExif?: boolean // default false
   stripExif?: boolean // convenience flag for UI layer
   colorSpace?: 'srgb' | 'display-p3'
@@ -85,8 +86,11 @@ export interface Job {
   kind: JobKind
   status: JobStatus
   progress: number // 0..1
+  stage?: string // e.g., "Decoding", "Resizing", "Encoding"
   error?: string
   result?: Blob | Blob[]
+  originalDimensions?: { width: number; height: number }
+  outputDimensions?: { width: number; height: number }
   options?: ImageConvertOpts | DocTask
   createdAt: number
   completedAt?: number

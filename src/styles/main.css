@@ -787,7 +787,7 @@ body {
 .file-row {
   position: relative;
   display: grid;
-  grid-template-columns: 32px minmax(0, 2.5fr) minmax(0, 1fr) 40px minmax(0, 1fr) minmax(0, 0.8fr) 112px;
+  grid-template-columns: 32px minmax(0, 2.5fr) minmax(0, 1fr) 40px minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr) 112px;
   align-items: center;
   gap: var(--space-12);
   padding: 0.75rem 0.75rem;
@@ -904,6 +904,43 @@ body {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-acc-error);
+}
+
+.file-row__dimensions {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* File item responsive layouts */
+.file-item__mobile {
+  display: none;
+}
+
+.file-item__desktop {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .file-item__mobile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+    padding: var(--space-12);
+    border: 1px solid transparent;
+    border-radius: var(--radius-panel);
+    background: rgba(255, 255, 255, 0.01);
+    transition: background var(--motion-normal) ease,
+                border-color var(--motion-normal) ease;
+  }
+
+  .file-item__mobile:hover {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: var(--color-line-hair);
+  }
+
+  .file-item__desktop {
+    display: none;
+  }
 }
 
 /* Form controls */
