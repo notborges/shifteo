@@ -11,7 +11,7 @@ export interface FormatCapability {
 
 export const CAPABILITIES = {
   image: {
-    input: ['png', 'jpg', 'jpeg', 'webp', 'avif'] as const,
+    input: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'svg'] as const,
     output: ['png', 'jpeg', 'webp', 'avif'] as const,
     maxMb: 100,
   },
@@ -30,6 +30,7 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/jpg': 'jpg',
   'image/webp': 'webp',
   'image/avif': 'avif',
+  'image/svg+xml': 'svg',
   'application/pdf': 'pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
   'text/html': 'html',
@@ -41,6 +42,7 @@ const EXT_TO_MIME: Record<string, string> = {
   'jpeg': 'image/jpeg',
   'webp': 'image/webp',
   'avif': 'image/avif',
+  'svg': 'image/svg+xml',
   'pdf': 'application/pdf',
   'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'html': 'text/html',

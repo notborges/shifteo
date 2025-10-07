@@ -1,0 +1,15 @@
+<svg width="128" height="128" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="shifteo-logo-title">
+  <title id="shifteo-logo-title">Shifteo logo</title>
+  <style>
+    text {
+      font-family: 'JetBrains Mono','Fira Code',Consolas,monospace;
+      font-size: 20px;
+      font-weight: 500;
+      dominant-baseline: middle;
+      text-anchor: middle;
+    }
+  </style>
+  <path d="M2 10V2H10" stroke="#FF5C5C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M22 30H30V22" stroke="#FF5C5C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="16" y="16" fill="#FF5C5C">S</text>
+</svg>

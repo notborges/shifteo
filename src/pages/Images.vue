@@ -19,11 +19,12 @@
       <UiPanel :inset="true" class="col-span-12">
         <template #header>
           <span>Add Images</span>
-          <span class="panel__meta">Accepts PNG · JPEG · WEBP · AVIF</span>
+          <span class="panel__meta">Accepts PNG · JPEG · WEBP · AVIF · SVG</span>
         </template>
         <DropZone
-          accept="image/png,image/jpeg,image/jpg,image/webp,image/avif"
+          accept="image/png,image/jpeg,image/jpg,image/webp,image/avif,image/svg+xml"
           @files-selected="handleFilesSelected"
+          @drop-complete="clearPageDragState"
         />
       </UiPanel>
 
@@ -405,7 +406,6 @@ function handlePageDragEnter(event: DragEvent) {
 
 function handlePageDragOver(event: DragEvent) {
   event.preventDefault()
-  event.stopPropagation()
 
   if (event.dataTransfer?.types.includes('Files')) {
     isPageDragging.value = true
@@ -413,25 +413,30 @@ function handlePageDragOver(event: DragEvent) {
 }
 
 function handlePageDragLeave(event: DragEvent) {
-  event.preventDefault()
   dragCounter.value--
 
-  if (dragCounter.value === 0) {
+  if (dragCounter.value <= 0) {
+    dragCounter.value = 0
     isPageDragging.value = false
   }
 }
 
 function handlePageDrop(event: DragEvent) {
-  event.preventDefault()
-  event.stopPropagation()
-
+  // Always clear overlay, even if we don't handle the drop
   isPageDragging.value = false
   dragCounter.value = 0
 
   const files = Array.from(event.dataTransfer?.files || [])
   if (files.length > 0) {
+    event.preventDefault()
+    event.stopPropagation()
     handleFilesSelected(files)
   }
+}
+
+function clearPageDragState() {
+  isPageDragging.value = false
+  dragCounter.value = 0
 }
 
 // Settings preview
@@ -520,9 +525,10 @@ watch(
 function detectFormatFromFile(file: File): ImageFormat {
   const ext = file.name.split('.').pop()?.toLowerCase()
   if (ext === 'png') return 'png'
-  if (ext === 'jpg' || ext === 'jpeg') return 'jpeg'  // Normalize both to 'jpeg'
+  if (ext === 'jpg' || ext === 'jpeg') return 'jpeg'
   if (ext === 'webp') return 'webp'
   if (ext === 'avif') return 'avif'
+  if (ext === 'svg') return 'png'  // SVG defaults to PNG output
   return 'png'
 }
 
@@ -532,6 +538,65 @@ function getJobTargetFormat(job: Job): ImageFormat {
     return detectFormatFromFile(job.file)
   }
   return opts.to
+}
+
+async function convertSVGToPNG(file: File, targetSize: number): Promise<Blob> {
+  const svgText = await file.text()
+
+  const parser = new DOMParser()
+  const svgDoc = parser.parseFromString(svgText, 'image/svg+xml')
+  const svgElement = svgDoc.documentElement
+
+  const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number)
+  let width = parseFloat(svgElement.getAttribute('width') || '0')
+  let height = parseFloat(svgElement.getAttribute('height') || '0')
+
+  if (!width && !height && viewBox) {
+    width = viewBox[2]
+    height = viewBox[3]
+  }
+
+  if (!width || !height) {
+    width = height = targetSize
+  }
+
+  const blob = new Blob([svgText], { type: 'image/svg+xml' })
+  const url = URL.createObjectURL(blob)
+
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+
+      if (!ctx) {
+        URL.revokeObjectURL(url)
+        reject(new Error('Failed to get canvas context'))
+        return
+      }
+
+      ctx.drawImage(img, 0, 0, width, height)
+
+      canvas.toBlob((pngBlob) => {
+        URL.revokeObjectURL(url)
+        if (pngBlob) {
+          resolve(pngBlob)
+        } else {
+          reject(new Error('Failed to create PNG blob'))
+        }
+      }, 'image/png')
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Failed to load SVG'))
+    }
+
+    img.src = url
+  })
 }
 
 function formatStats() {
@@ -569,42 +634,52 @@ async function handleFilesSelected(files: File[]) {
       )
     }
 
-    // Generate thumbnail and get dimensions in parallel
-    const [dimensions, thumbnail] = await Promise.all([
-      getImageDimensions(file),
-      generateThumbnail(file, 48)
-    ])
+    const isSVG = file.name.toLowerCase().endsWith('.svg')
 
-    // Convert thumbnail URL to blob for storage
-    let thumbnailBlob: Blob | undefined
-    if (thumbnail) {
-      try {
-        const response = await fetch(thumbnail)
-        thumbnailBlob = await response.blob()
-      } catch (e) {
-        console.warn('Failed to convert thumbnail to blob')
-      }
-    }
-
+    // Add to queue immediately
     const jobId = queueStore.addJob({
       file,
       kind: 'image',
       status: 'idle',
-      originalDimensions: dimensions || undefined,
-      thumbnail: thumbnail || undefined,
-      options: toRaw(options.value)
-    })
-
-    // Store in IndexedDB for persistence
-    await storeQueueJob({
-      id: jobId,
-      file,
-      originalDimensions: dimensions || undefined,
-      thumbnailBlob,
+      originalDimensions: undefined,
+      thumbnail: undefined,
       options: toRaw(options.value)
     })
 
     addedCount++
+
+    // Generate thumbnails and dimensions in background (non-blocking)
+    Promise.all([
+      isSVG ? Promise.resolve(null) : getImageDimensions(file),
+      generateThumbnail(file, 48)
+    ]).then(async ([dimensions, thumbnail]) => {
+      // Update job with thumbnail and dimensions
+      queueStore.updateJob(jobId, {
+        originalDimensions: dimensions || undefined,
+        thumbnail: thumbnail || undefined
+      })
+
+      // Convert thumbnail to blob and store in IDB
+      let thumbnailBlob: Blob | undefined
+      if (thumbnail) {
+        try {
+          const response = await fetch(thumbnail)
+          thumbnailBlob = await response.blob()
+        } catch (e) {
+          console.warn('Failed to convert thumbnail to blob')
+        }
+      }
+
+      await storeQueueJob({
+        id: jobId,
+        file,
+        originalDimensions: dimensions || undefined,
+        thumbnailBlob,
+        options: toRaw(options.value)
+      })
+    }).catch(error => {
+      console.error('Failed to generate metadata for file:', error)
+    })
   }
 
   if (addedCount > 0) {
@@ -630,8 +705,22 @@ async function startConversion() {
           ? detectFormatFromFile(job.file)
           : options.value.to
 
+        let fileToProcess = job.file
+
+        // Pre-process SVG files (convert to PNG in main thread)
+        if (job.file.name.toLowerCase().endsWith('.svg')) {
+          queueStore.updateJobStage(job.id, 'Rendering SVG...')
+
+          const size = options.value.longEdge || options.value.width || options.value.height || 1000
+          const pngBlob = await convertSVGToPNG(job.file, size)
+
+          fileToProcess = new File([pngBlob], job.file.name.replace(/\.svg$/i, '.png'), {
+            type: 'image/png'
+          })
+        }
+
         const result = await imageWorker.convert(
-          job.file,
+          fileToProcess,
           {
             ...toRaw(options.value),
             to: targetFormat

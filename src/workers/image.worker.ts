@@ -238,16 +238,17 @@ async function convertImage(
     console.log('[Worker] Original:', originalWidth, 'x', originalHeight)
     onProgress?.(0.3)
 
-    // Calculate dimensions
-    const { width: targetWidth, height: targetHeight} = calculateResizeDimensions(
+    // Calculate target dimensions
+    const { width: targetWidth, height: targetHeight } = calculateResizeDimensions(
       originalWidth,
       originalHeight,
       opts
     )
+
     console.log('[Worker] Target:', targetWidth, 'x', targetHeight)
     onProgress?.(0.35)
 
-    // Resize
+    // Resize if needed
     let processedImageData = imageData
     if (targetWidth !== originalWidth || targetHeight !== originalHeight) {
       console.log('[Worker] Resizing...')

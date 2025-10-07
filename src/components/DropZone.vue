@@ -8,7 +8,7 @@
     @click="handleClick"
     @dragover.prevent="handleDragOver"
     @dragleave.prevent="handleDragLeave"
-    @drop.prevent="handleDrop"
+    @drop.prevent.stop="handleDrop"
   >
     <!-- Content -->
     <Upload :size="48" class="drop-zone__icon" :stroke-width="1.5" />
@@ -25,6 +25,7 @@
       <span class="drop-zone__chip">JPEG</span>
       <span class="drop-zone__chip">WEBP</span>
       <span class="drop-zone__chip">AVIF</span>
+      <span class="drop-zone__chip">SVG</span>
     </div>
 
     <input
@@ -57,6 +58,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   filesSelected: [files: File[]]
+  dropComplete: []
 }>()
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -95,5 +97,7 @@ function handleDrop(event: DragEvent) {
   if (files.length > 0) {
     emit('filesSelected', files)
   }
+
+  emit('dropComplete')
 }
 </script>

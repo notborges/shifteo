@@ -48,7 +48,10 @@
           </template>
         </div>
         <div class="file-row__meta file-row__dimensions mono text-text-muted">
-          <template v-if="dimensionsChanged">
+          <template v-if="originalFormat === 'svg' && !job.outputDimensions">
+            Vector
+          </template>
+          <template v-else-if="dimensionsChanged">
             <span class="text-text-muted">{{ job.originalDimensions!.width }}×{{ job.originalDimensions!.height }}</span>
             <ArrowRight :size="12" class="inline mx-1 text-text-muted" />
             <span class="text-text-secondary">{{ job.outputDimensions!.width }}×{{ job.outputDimensions!.height }}</span>
@@ -165,14 +168,20 @@
           <span v-else>{{ formatFileSize(job.file.size) }}</span>
         </div>
 
-        <div v-if="dimensionsChanged || job.originalDimensions || job.outputDimensions" class="text-text-secondary">
-          <template v-if="dimensionsChanged">
+        <div v-if="originalFormat === 'svg' || dimensionsChanged || job.originalDimensions || job.outputDimensions" class="text-text-secondary">
+          <template v-if="originalFormat === 'svg' && !job.outputDimensions">
+            Vector
+          </template>
+          <template v-else-if="dimensionsChanged">
             {{ job.originalDimensions!.width }}×{{ job.originalDimensions!.height }}
             <ArrowRight :size="10" class="inline mx-1" />
             {{ job.outputDimensions!.width }}×{{ job.outputDimensions!.height }}
           </template>
-          <template v-else>
-            {{ (job.outputDimensions || job.originalDimensions)!.width }}×{{ (job.outputDimensions || job.originalDimensions)!.height }}
+          <template v-else-if="job.outputDimensions">
+            {{ job.outputDimensions.width }}×{{ job.outputDimensions.height }}
+          </template>
+          <template v-else-if="job.originalDimensions">
+            {{ job.originalDimensions.width }}×{{ job.originalDimensions.height }}
           </template>
         </div>
       </div>
@@ -229,10 +238,11 @@ const sizeChangeClass = computed(() => {
 
 const originalFormat = computed(() => {
   const ext = props.job.file.name.split('.').pop()?.toLowerCase()
-  if (ext === 'jpg' || ext === 'jpeg') return 'jpeg'  // Normalize to 'jpeg'
+  if (ext === 'jpg' || ext === 'jpeg') return 'jpeg'
   if (ext === 'png') return 'png'
   if (ext === 'webp') return 'webp'
   if (ext === 'avif') return 'avif'
+  if (ext === 'svg') return 'svg'
   return null
 })
 
@@ -246,6 +256,10 @@ const targetFormat = computed(() => {
 const formatChanged = computed(() => {
   if (!originalFormat.value || !targetFormat.value) return false
   if (targetFormat.value === 'original') return false
+
+  // Don't show format badge for idle jobs (options might be stale from storage)
+  if (props.job.status === 'idle') return false
+
   return originalFormat.value !== targetFormat.value
 })
 

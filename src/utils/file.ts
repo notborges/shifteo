@@ -208,6 +208,61 @@ export async function getImageDimensions(file: File): Promise<{ width: number; h
 }
 
 /**
+ * Generate thumbnail for SVG file
+ */
+async function generateSVGThumbnail(file: File, size: number): Promise<string | null> {
+  try {
+    const svgText = await file.text()
+    const blob = new Blob([svgText], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+
+    return new Promise((resolve) => {
+      const img = new Image()
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = size
+        canvas.height = size
+        const ctx = canvas.getContext('2d')
+
+        if (!ctx) {
+          URL.revokeObjectURL(url)
+          resolve(null)
+          return
+        }
+
+        const scale = size / Math.max(img.width, img.height)
+        const scaledWidth = img.width * scale
+        const scaledHeight = img.height * scale
+        const offsetX = (size - scaledWidth) / 2
+        const offsetY = (size - scaledHeight) / 2
+
+        ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight)
+
+        canvas.toBlob((thumbBlob) => {
+          URL.revokeObjectURL(url)
+          if (thumbBlob) {
+            resolve(URL.createObjectURL(thumbBlob))
+          } else {
+            resolve(null)
+          }
+        }, 'image/jpeg', 0.8)
+      }
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url)
+        resolve(null)
+      }
+
+      img.src = url
+    })
+  } catch (error) {
+    console.error('Failed to generate SVG thumbnail:', error)
+    return null
+  }
+}
+
+/**
  * Generate thumbnail from image file
  */
 export async function generateThumbnail(
@@ -215,12 +270,17 @@ export async function generateThumbnail(
   size: number = 48
 ): Promise<string | null> {
   try {
+    // Special handling for SVG
+    if (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) {
+      return await generateSVGThumbnail(file, size)
+    }
+
+    // Regular images
     const bitmap = await createImageBitmap(file)
     const canvas = new OffscreenCanvas(size, size)
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
 
-    // Calculate crop to square (center crop)
     const sourceSize = Math.min(bitmap.width, bitmap.height)
     const sourceX = (bitmap.width - sourceSize) / 2
     const sourceY = (bitmap.height - sourceSize) / 2
