@@ -224,7 +224,7 @@ const sizeChangeClass = computed(() => {
 
 const originalFormat = computed(() => {
   const ext = props.job.file.name.split('.').pop()?.toLowerCase()
-  if (ext === 'jpg' || ext === 'jpeg') return 'jpg'
+  if (ext === 'jpg' || ext === 'jpeg') return 'jpeg'  // Normalize to 'jpeg'
   if (ext === 'png') return 'png'
   if (ext === 'webp') return 'webp'
   if (ext === 'avif') return 'avif'

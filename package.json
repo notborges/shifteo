@@ -24,6 +24,7 @@
     "@pdfme/pdf-lib": "latest",
     "comlink": "latest",
     "idb": "latest",
+    "jszip": "^3.10.1",
     "lucide-vue-next": "latest",
     "mammoth": "latest",
     "pdfjs-dist": "latest",

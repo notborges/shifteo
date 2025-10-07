@@ -37,8 +37,13 @@
           </div>
         </div>
         <div class="panel__footer" v-if="queueStore.totalJobs > 0">
-          <div class="flex w-full items-center justify-between">
-            <span>{{ queueStore.totalJobs }} file{{ queueStore.totalJobs > 1 ? 's' : '' }}</span>
+          <div class="flex w-full items-center justify-between flex-wrap gap-2">
+            <div class="flex flex-col gap-1">
+              <span>{{ queueStore.totalJobs }} file{{ queueStore.totalJobs > 1 ? 's' : '' }}</span>
+              <span v-if="queueStore.completedJobs.length > 0" class="text-text-muted text-xs mono">
+                {{ formatStats() }}
+              </span>
+            </div>
             <div class="flex gap-2">
               <UiButton
                 v-if="queueStore.completedJobs.length > 0"
@@ -58,20 +63,26 @@
           <span>Output Format</span>
           <span class="panel__meta">Select one target</span>
         </div>
-        <div class="panel__body grid sm:grid-cols-2 gap-4">
-          <UiButton
-            v-for="format in formatOptions"
-            :key="format.value"
-            type="button"
-            @click="options.to = format.value"
-            variant="solid"
-            :tone="options.to === format.value ? 'accent' : 'default'"
-          >
-            <span class="mono tracking-wider">{{ format.value.toUpperCase() }}</span>
-            <span
-              :class="['block text-[11px] tracking-wide', options.to === format.value ? 'text-[#070909]' : 'text-text-muted']"
-            >{{ format.desc }}</span>
-          </UiButton>
+        <div class="panel__body">
+          <div class="grid sm:grid-cols-2 gap-4">
+            <UiButton
+              v-for="format in formatOptions"
+              :key="format.value"
+              type="button"
+              @click="options.to = format.value"
+              variant="solid"
+              :tone="options.to === format.value ? 'accent' : 'default'"
+            >
+              <span class="mono tracking-wider">{{ format.value.toUpperCase() }}</span>
+              <span
+                :class="['block text-[11px] tracking-wide', options.to === format.value ? 'text-[#070909]' : 'text-text-muted']"
+              >{{ format.desc }}</span>
+            </UiButton>
+          </div>
+
+          <div class="body-text text-text-muted text-xs mt-4 px-1">
+            {{ formatHints[options.to] }}
+          </div>
         </div>
       </div>
 
@@ -226,32 +237,49 @@
       </div>
 
       <div class="panel col-span-12">
-        <div class="panel__body flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div class="body-text text-text-muted">
-            All processing happens locally in your browser. Processing time depends on file size and format.
-          </div>
-          <div class="flex flex-col gap-3 md:flex-row md:items-center">
-            <UiButton
-              variant="solid"
-              tone="accent"
-              size="lg"
-              @click="startConversion"
-              :disabled="queueStore.pendingJobs.length === 0 || queueStore.hasActiveJobs"
-            >
-              <span v-if="queueStore.hasActiveJobs">Shifting…</span>
-              <span v-else-if="queueStore.pendingJobs.length > 0">
-                {{ options.to === 'original' ? 'Process Files' : `Shift to ${options.to.toUpperCase()}` }}
-              </span>
-              <span v-else>Select Files</span>
-            </UiButton>
-            <UiButton
-              v-if="queueStore.completedJobs.length > 0"
-              @click="downloadAll"
-              type="button"
-              variant="solid"
-            >
-              Download All ({{ queueStore.completedJobs.length }})
-            </UiButton>
+        <div class="panel__body">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div class="flex flex-col gap-2">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <span class="checkbox">
+                  <input type="checkbox" v-model="autoDownload" />
+                  <span class="checkbox__mark" />
+                </span>
+                <span class="body-text text-text-secondary uppercase tracking-wide text-sm">
+                  Auto-download
+                </span>
+              </label>
+
+              <div class="body-text text-text-muted text-xs mono">
+                {{ settingsPreview }}
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-3 sm:justify-end w-full sm:w-auto">
+              <UiButton
+                variant="solid"
+                tone="accent"
+                size="lg"
+                @click="startConversion"
+                :disabled="queueStore.pendingJobs.length === 0 || queueStore.hasActiveJobs"
+              >
+                <span v-if="queueStore.hasActiveJobs">Shifting…</span>
+                <span v-else-if="queueStore.pendingJobs.length > 0">
+                  {{ options.to === 'original' ? 'Process Files' : `Shift to ${options.to.toUpperCase()}` }}
+                </span>
+                <span v-else>Select Files</span>
+              </UiButton>
+
+              <UiButton
+                v-if="queueStore.completedJobs.length > 0"
+                @click="downloadAll"
+                type="button"
+                variant="solid"
+                size="lg"
+              >
+                Download ZIP ({{ queueStore.completedJobs.length }})
+              </UiButton>
+            </div>
           </div>
         </div>
       </div>
@@ -260,7 +288,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, toRaw, watch } from 'vue'
+import { ref, toRaw, watch, computed } from 'vue'
 import DropZone from '@/components/DropZone.vue'
 import FileListItem from '@/components/FileListItem.vue'
 import UiButton from '@/components/ui/UiButton.vue'
@@ -269,8 +297,8 @@ import { useQueueStore } from '@/app/stores/queue'
 import { useSettingsStore } from '@/app/stores/settings'
 import { useToastStore } from '@/app/stores/toast'
 import { imageWorkerPool as imageWorker } from '@/workers/workerPool'
-import { isFormatSupported, generateOutputFilename } from '@/utils/format'
-import { getImageDimensions, generateThumbnail, downloadFile } from '@/utils/file'
+import { isFormatSupported, generateOutputFilename, formatFileSize } from '@/utils/format'
+import { getImageDimensions, generateThumbnail, downloadFile, downloadAsZip } from '@/utils/file'
 import { Upload, ListX } from 'lucide-vue-next'
 import type { ImageConvertOpts, ImageFormat, Job } from '@/workers/types'
 
@@ -294,6 +322,14 @@ const qualityPresets = [
   { label: 'High', value: 0.95 }
 ]
 
+const formatHints: Record<string, string> = {
+  original: 'Process without changing format',
+  png: 'Lossless - Best for graphics, screenshots, transparency',
+  jpeg: 'Lossy - Smallest files, best for photos',
+  webp: 'Modern - Better compression, wide browser support',
+  avif: 'Best compression - Slower encoding, newer format'
+}
+
 const options = ref<UiImageOptions & { to: ImageFormat | 'original' }>({
   to: settingsStore.defaultImageFormat,
   quality: settingsStore.defaultImageQuality,
@@ -310,6 +346,44 @@ const scalePercent = ref(75)
 const longEdgeSize = ref(1920)
 const customWidth = ref<number | undefined>(undefined)
 const customHeight = ref<number | undefined>(undefined)
+
+// Auto-download
+const autoDownload = ref(false)
+
+// Settings preview
+const settingsPreview = computed(() => {
+  const parts: string[] = []
+
+  if (options.value.to === 'original') {
+    parts.push('Keep original format')
+  } else {
+    parts.push(`Shift to ${options.value.to.toUpperCase()}`)
+  }
+
+  if (options.value.to !== 'png' && options.value.to !== 'original') {
+    parts.push(`${Math.round(options.value.quality * 100)}% quality`)
+  }
+
+  if (resizeMode.value === 'scale' && scalePercent.value !== 100) {
+    parts.push(`Scale to ${scalePercent.value}%`)
+  } else if (resizeMode.value === 'longEdge') {
+    parts.push(`Resize long edge to ${longEdgeSize.value}px`)
+  } else if (resizeMode.value === 'custom') {
+    if (customWidth.value && customHeight.value) {
+      parts.push(`Resize to ${customWidth.value}×${customHeight.value}`)
+    } else if (customWidth.value) {
+      parts.push(`Resize width to ${customWidth.value}px`)
+    } else if (customHeight.value) {
+      parts.push(`Resize height to ${customHeight.value}px`)
+    }
+  }
+
+  if (options.value.stripExif) {
+    parts.push('Strip EXIF')
+  }
+
+  return parts.join(' • ')
+})
 
 // Update options when resize settings change
 watch([resizeMode, scalePercent, longEdgeSize, customWidth, customHeight], () => {
@@ -341,13 +415,55 @@ watch([resizeMode, scalePercent, longEdgeSize, customWidth, customHeight], () =>
   }
 })
 
+// Watch for newly completed jobs and auto-download
+watch(
+  () => queueStore.completedJobs.length,
+  async (newCount, oldCount) => {
+    if (!autoDownload.value) return
+    if (newCount <= oldCount) return
+
+    // Find recently completed job(s)
+    const recentlyCompleted = queueStore.completedJobs.filter(job => {
+      return job.completedAt && Date.now() - job.completedAt < 1000
+    })
+
+    for (const job of recentlyCompleted) {
+      await handleDownload(job)
+    }
+  }
+)
+
 function detectFormatFromFile(file: File): ImageFormat {
   const ext = file.name.split('.').pop()?.toLowerCase()
   if (ext === 'png') return 'png'
-  if (ext === 'jpg' || ext === 'jpeg') return 'jpeg'
+  if (ext === 'jpg' || ext === 'jpeg') return 'jpeg'  // Normalize both to 'jpeg'
   if (ext === 'webp') return 'webp'
   if (ext === 'avif') return 'avif'
   return 'png'
+}
+
+function getJobTargetFormat(job: Job): ImageFormat {
+  const opts = job.options as any
+  if (!opts?.to || opts.to === 'original') {
+    return detectFormatFromFile(job.file)
+  }
+  return opts.to
+}
+
+function formatStats() {
+  const completed = queueStore.completedJobs.filter(j => j.result)
+  if (completed.length === 0) return ''
+
+  const originalSize = completed.reduce((sum, job) => sum + job.file.size, 0)
+  const newSize = completed.reduce((sum, job) => {
+    const size = Array.isArray(job.result) ? job.result[0]!.size : job.result!.size
+    return sum + size
+  }, 0)
+
+  const saved = originalSize - newSize
+  const percent = Math.round((saved / originalSize) * 100)
+
+  return `${formatFileSize(originalSize)} → ${formatFileSize(newSize)} (${percent >= 0 ? '-' : '+'}${Math.abs(percent)}%)`
 }
 
 async function handleFilesSelected(files: File[]) {
@@ -441,10 +557,22 @@ async function startConversion() {
   const elapsed = Math.round((performance.now() - startTime) / 1000)
   const errorCount = queueStore.errorJobs.length
 
+  // Calculate stats
+  const originalTotalSize = pendingJobs.reduce((sum, job) => sum + job.file.size, 0)
+  const completed = queueStore.completedJobs.filter(job =>
+    pendingJobs.some(pj => pj.id === job.id) && job.result
+  )
+  const newTotalSize = completed.reduce((sum, job) => {
+    const size = Array.isArray(job.result) ? job.result[0]!.size : job.result!.size
+    return sum + size
+  }, 0)
+  const savedBytes = originalTotalSize - newTotalSize
+  const avgCompression = originalTotalSize > 0 ? Math.round((savedBytes / originalTotalSize) * 100) : 0
+
   if (errorCount === 0) {
     toastStore.success(
       'Processing Complete',
-      `${count} file${count > 1 ? 's' : ''} processed in ${elapsed}s`
+      `${count} files in ${elapsed}s • Saved ${formatFileSize(savedBytes)} (${avgCompression}% compression)`
     )
   } else if (errorCount < count) {
     toastStore.warning(
@@ -462,10 +590,22 @@ async function handleDownload(job: Job) {
 }
 
 async function downloadAll() {
-  for (const job of queueStore.completedJobs) {
-    await handleDownload(job)
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
+  const files = queueStore.completedJobs.map(job => ({
+    blob: Array.isArray(job.result) ? job.result[0]! : job.result!,
+    filename: generateOutputFilename(
+      job.file.name,
+      getJobTargetFormat(job),
+      settingsStore.outputNamingPattern
+    )
+  }))
+
+  const timestamp = new Date().toISOString().split('T')[0]
+  await downloadAsZip(files, `shifteo-${timestamp}.zip`)
+
+  toastStore.success(
+    'Download Complete',
+    `${files.length} file${files.length > 1 ? 's' : ''} downloaded as ZIP`
+  )
 }
 
 async function handleRetry(jobId: string) {

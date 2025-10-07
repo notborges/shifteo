@@ -60,6 +60,32 @@ export async function downloadMultipleFiles(
 }
 
 /**
+ * Download multiple files as a ZIP archive
+ */
+export async function downloadAsZip(
+  files: Array<{ blob: Blob; filename: string }>,
+  zipFilename: string = 'shifteo-export.zip'
+): Promise<void> {
+  const JSZip = (await import('jszip')).default
+  const zip = new JSZip()
+
+  // Add all files to ZIP
+  for (const { blob, filename } of files) {
+    zip.file(filename, blob)
+  }
+
+  // Generate ZIP blob
+  const zipBlob = await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 }
+  })
+
+  // Download the ZIP
+  await downloadFile(zipBlob, zipFilename)
+}
+
+/**
  * Read file as ArrayBuffer
  */
 export async function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
