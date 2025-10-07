@@ -1,5 +1,20 @@
 <template>
-  <div class="page-shell">
+  <div
+    class="page-shell"
+    @dragenter="handlePageDragEnter"
+    @dragover.prevent="handlePageDragOver"
+    @dragleave="handlePageDragLeave"
+    @drop="handlePageDrop"
+  >
+    <Transition name="drag-overlay">
+      <div v-if="isPageDragging" class="page-drag-overlay">
+        <div class="page-drag-indicator">
+          <Upload :size="64" :stroke-width="1.5" />
+          <div class="page-drag-text">Drop files to add to queue</div>
+        </div>
+      </div>
+    </Transition>
+
     <div class="page-grid">
       <UiPanel :inset="true" class="col-span-12">
         <template #header>
@@ -373,6 +388,50 @@ function openPreview(job: Job) {
 function closePreview() {
   showPreview.value = false
   previewJob.value = null
+}
+
+// Global page drag/drop
+const isPageDragging = ref(false)
+const dragCounter = ref(0)
+
+function handlePageDragEnter(event: DragEvent) {
+  event.preventDefault()
+  dragCounter.value++
+
+  if (event.dataTransfer?.types.includes('Files')) {
+    isPageDragging.value = true
+  }
+}
+
+function handlePageDragOver(event: DragEvent) {
+  event.preventDefault()
+  event.stopPropagation()
+
+  if (event.dataTransfer?.types.includes('Files')) {
+    isPageDragging.value = true
+  }
+}
+
+function handlePageDragLeave(event: DragEvent) {
+  event.preventDefault()
+  dragCounter.value--
+
+  if (dragCounter.value === 0) {
+    isPageDragging.value = false
+  }
+}
+
+function handlePageDrop(event: DragEvent) {
+  event.preventDefault()
+  event.stopPropagation()
+
+  isPageDragging.value = false
+  dragCounter.value = 0
+
+  const files = Array.from(event.dataTransfer?.files || [])
+  if (files.length > 0) {
+    handleFilesSelected(files)
+  }
 }
 
 // Settings preview

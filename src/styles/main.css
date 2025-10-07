@@ -1837,3 +1837,45 @@ body {
   opacity: 0;
   transform: scale(0.95);
 }
+
+/* === Global Page Drop Zone === */
+.page-drag-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 12, 14, 0.9);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.page-drag-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-16);
+  padding: var(--space-32);
+  border: 2px dashed var(--color-acc-error);
+  border-radius: var(--radius-panel);
+  background: rgba(255, 92, 92, 0.1);
+  color: var(--color-text-primary);
+}
+
+.page-drag-text {
+  font-family: var(--font-ui-mono);
+  font-size: 16px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.drag-overlay-enter-active,
+.drag-overlay-leave-active {
+  transition: opacity var(--motion-fast) ease;
+}
+
+.drag-overlay-enter-from,
+.drag-overlay-leave-to {
+  opacity: 0;
+}
