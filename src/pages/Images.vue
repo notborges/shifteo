@@ -342,6 +342,7 @@ const toastStore = useToastStore()
 const acceptedFormats = [
   { label: 'PNG', mime: 'image/png' },
   { label: 'JPEG', mime: 'image/jpeg' },
+  { label: 'JPEG', mime: 'image/jpg' },
   { label: 'WEBP', mime: 'image/webp' },
   { label: 'AVIF', mime: 'image/avif' },
   { label: 'SVG', mime: 'image/svg+xml' },
@@ -366,7 +367,7 @@ type UiImageOptions = Omit<ImageConvertOpts, 'to'> & {
 }
 
 const formatOptions: Array<{ value: UiImageFormat; desc: string }> = [
-  { value: 'original' as const, desc: 'KEEP' },
+  { value: 'original' as const, desc: '' },
   { value: 'png' as ImageFormat, desc: 'LOSSLESS' },
   { value: 'jpeg' as ImageFormat, desc: 'SMALLEST' },
   { value: 'webp' as ImageFormat, desc: 'BALANCED' },
@@ -648,12 +649,57 @@ function formatStats() {
 async function handleFilesSelected(files: File[]) {
   let addedCount = 0
 
+  const queueSingleFile = async (file: File, options: { pageIndex?: number; buffer?: ArrayBuffer } = {}) => {
+    const jobId = queueStore.addJob({
+      file,
+      kind: 'image',
+      status: 'idle',
+      originalDimensions: undefined,
+      thumbnail: undefined,
+      sourcePage: options.pageIndex
+    })
+
+    addedCount++
+
+    const [dimensions, thumbnail] = await Promise.all([
+      getImageDimensions(file, { pageIndex: options.pageIndex, buffer: options.buffer }),
+      generateThumbnail(file, 48, { pageIndex: options.pageIndex, buffer: options.buffer })
+    ]).catch(error => {
+      console.error('Failed to generate metadata for file:', error)
+      return [null, null] as const
+    })
+
+    queueStore.updateJob(jobId, {
+      originalDimensions: dimensions || undefined,
+      thumbnail: thumbnail || undefined
+    })
+
+    let thumbnailBlob: Blob | undefined
+    if (thumbnail) {
+      try {
+        const response = await fetch(thumbnail)
+        thumbnailBlob = await response.blob()
+      } catch (e) {
+        console.warn('Failed to convert thumbnail to blob')
+      }
+    }
+
+    await storeQueueJob({
+      id: jobId,
+      file,
+      originalDimensions: dimensions || undefined,
+      thumbnailBlob,
+      sourcePage: options.pageIndex
+    })
+
+    if (thumbnail) {
+      URL.revokeObjectURL(thumbnail)
+    }
+  }
+
   for (const file of files) {
     if (!isFormatSupported(file)) {
-      toastStore.error(
-        'Unsupported Format',
-        `${file.name} is not a supported image format`
-      )
+      toastStore.error('Unsupported Format', `${file.name} is not a supported image format`)
       continue
     }
 
@@ -664,58 +710,35 @@ async function handleFilesSelected(files: File[]) {
       )
     }
 
-    const isSVG = file.name.toLowerCase().endsWith('.svg')
+    const lowerName = file.name.toLowerCase()
 
-    // Add to queue immediately (without saving options - they come from UI)
-    const jobId = queueStore.addJob({
-      file,
-      kind: 'image',
-      status: 'idle',
-      originalDimensions: undefined,
-      thumbnail: undefined
-    })
+    if (lowerName.endsWith('.tif') || lowerName.endsWith('.tiff') || file.type === 'image/tiff') {
+      try {
+        const buffer = await file.arrayBuffer()
+        const { getPageCount } = await import('@/workers/codecs/local-tiff')
+        const pageCount = await getPageCount(buffer)
 
-    addedCount++
-
-    // Generate thumbnails and dimensions in background (non-blocking)
-    Promise.all([
-      isSVG ? Promise.resolve(null) : getImageDimensions(file),
-      generateThumbnail(file, 48)
-    ]).then(async ([dimensions, thumbnail]) => {
-      // Update job with thumbnail and dimensions
-      queueStore.updateJob(jobId, {
-        originalDimensions: dimensions || undefined,
-        thumbnail: thumbnail || undefined
-      })
-
-      // Convert thumbnail to blob and store in IDB
-      let thumbnailBlob: Blob | undefined
-      if (thumbnail) {
-        try {
-          const response = await fetch(thumbnail)
-          thumbnailBlob = await response.blob()
-        } catch (e) {
-          console.warn('Failed to convert thumbnail to blob')
+        if (pageCount > 1) {
+          for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+            await queueSingleFile(file, { pageIndex, buffer })
+          }
+          continue
         }
-      }
 
-      // Store file for persistence (without options - they come from current UI)
-      await storeQueueJob({
-        id: jobId,
-        file,
-        originalDimensions: dimensions || undefined,
-        thumbnailBlob
-      })
-    }).catch(error => {
-      console.error('Failed to generate metadata for file:', error)
-    })
+        await queueSingleFile(file, { pageIndex: 0, buffer })
+        continue
+      } catch (error) {
+        console.error('Failed to process multi-page TIFF:', error)
+        toastStore.error('TIFF Error', `Could not process ${file.name}`)
+        continue
+      }
+    }
+
+    await queueSingleFile(file)
   }
 
   if (addedCount > 0) {
-    toastStore.success(
-      'Files Added',
-      `${addedCount} file${addedCount > 1 ? 's' : ''} added to queue`
-    )
+    toastStore.success('Files Added', `${addedCount} file${addedCount > 1 ? 's' : ''} added to queue`)
   }
 }
 
@@ -814,7 +837,16 @@ async function handleDownload(job: Job) {
   if (!job.result) return
   const blob = Array.isArray(job.result) ? job.result[0]! : job.result
   const targetFormat = getJobTargetFormat(job)
-  const filename = generateOutputFilename(job.file.name, targetFormat, settingsStore.outputNamingPattern)
+  const filename = generateOutputFilename(
+    job.file.name,
+    targetFormat,
+    settingsStore.outputNamingPattern,
+    {
+      width: job.outputDimensions?.width ?? job.originalDimensions?.width,
+      height: job.outputDimensions?.height ?? job.originalDimensions?.height,
+      page: job.sourcePage != null ? job.sourcePage + 1 : undefined
+    }
+  )
   await downloadFile(blob, filename)
 
   // Remove from storage after download
@@ -835,7 +867,12 @@ async function downloadAll() {
     filename: generateOutputFilename(
       job.file.name,
       getJobTargetFormat(job),
-      settingsStore.outputNamingPattern
+      settingsStore.outputNamingPattern,
+      {
+        width: job.outputDimensions?.width ?? job.originalDimensions?.width,
+        height: job.outputDimensions?.height ?? job.originalDimensions?.height,
+        page: job.sourcePage != null ? job.sourcePage + 1 : undefined
+      }
     )
   }))
 

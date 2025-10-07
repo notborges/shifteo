@@ -82,7 +82,7 @@ async function convertImage(
 
     onStage?.('Decoding...')
     onProgress?.(0.1)
-    const imageData = await decodeImage(buffer)
+    const imageData = await decodeImage(buffer, { pageIndex: opts.sourcePage })
     const { width: originalWidth, height: originalHeight } = imageData
     onProgress?.(0.3)
 

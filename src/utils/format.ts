@@ -151,7 +151,7 @@ export function generateOutputFilename(
   originalName: string,
   format: string,
   pattern: string = '${name}.${ext}',
-  metadata?: { width?: number; height?: number }
+  metadata?: { width?: number; height?: number; page?: number }
 ): string {
   const nameWithoutExt = originalName.replace(/\.[^/.]+$/, '')
 
@@ -160,6 +160,7 @@ export function generateOutputFilename(
     .replace('${ext}', format)
     .replace('${w}', metadata?.width?.toString() ?? '')
     .replace('${h}', metadata?.height?.toString() ?? '')
+    .replace('${p}', metadata?.page ? metadata.page.toString() : '')
 }
 
 export type OriginalImageFormat = 'png' | 'jpeg' | 'webp' | 'avif' | 'svg'

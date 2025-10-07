@@ -12,7 +12,7 @@ async function ensureUTIF() {
   }
 }
 
-export async function decode(buffer: ArrayBuffer): Promise<JSquashImageData> {
+export async function decode(buffer: ArrayBuffer, pageIndex = 0): Promise<JSquashImageData> {
   await ensureUTIF()
 
   const ifds = UTIF.decode(buffer)
@@ -20,12 +20,13 @@ export async function decode(buffer: ArrayBuffer): Promise<JSquashImageData> {
     throw new Error('TIFF image contains no IFDs')
   }
 
-  const firstIFD = ifds[0]
-  UTIF.decodeImage(buffer, firstIFD)
-  const rgba = UTIF.toRGBA8(firstIFD)
+  const index = Math.max(0, Math.min(pageIndex, ifds.length - 1))
+  const selectedIFD = ifds[index]
+  UTIF.decodeImage(buffer, selectedIFD)
+  const rgba = UTIF.toRGBA8(selectedIFD)
 
-  const width = firstIFD.width ?? firstIFD.t256?.[0]
-  const height = firstIFD.height ?? firstIFD.t257?.[0]
+  const width = selectedIFD.width ?? selectedIFD.t256?.[0]
+  const height = selectedIFD.height ?? selectedIFD.t257?.[0]
 
   if (!width || !height) {
     throw new Error('Unable to determine TIFF dimensions')
@@ -36,6 +37,12 @@ export async function decode(buffer: ArrayBuffer): Promise<JSquashImageData> {
     width,
     height
   }
+}
+
+export async function getPageCount(buffer: ArrayBuffer): Promise<number> {
+  await ensureUTIF()
+  const ifds = UTIF.decode(buffer)
+  return ifds?.length ?? 0
 }
 
 export async function encode(imageData: JSquashImageData): Promise<ArrayBuffer> {

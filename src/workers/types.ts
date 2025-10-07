@@ -14,6 +14,7 @@ export interface ImageConvertOpts {
   keepExif?: boolean // default false
   stripExif?: boolean // convenience flag for UI layer
   colorSpace?: 'srgb' | 'display-p3'
+  sourcePage?: number // for multi-frame inputs like TIFF
 }
 
 export interface ImageConvertResult {
@@ -93,6 +94,7 @@ export interface Job {
   originalDimensions?: { width: number; height: number }
   outputDimensions?: { width: number; height: number }
   outputFormat?: ImageFormat // Actual format used for conversion
+  sourcePage?: number
   options?: ImageConvertOpts | DocTask // Deprecated - kept for backwards compat, not used
   createdAt: number
   completedAt?: number

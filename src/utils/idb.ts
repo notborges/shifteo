@@ -19,6 +19,7 @@ interface ShifteoDB extends DBSchema {
         type?: string
         originalDimensions?: { width: number; height: number }
         thumbnailBlob?: Blob
+        sourcePage?: number
       }
     }
     indexes: { 'createdAt': number }
@@ -230,6 +231,7 @@ export async function storeQueueJob(job: {
   file: File
   originalDimensions?: { width: number; height: number }
   thumbnailBlob?: Blob
+  sourcePage?: number
 }): Promise<void> {
   try {
     const db = await getDB()
@@ -241,7 +243,8 @@ export async function storeQueueJob(job: {
         filename: job.file.name,
         type: job.file.type,
         originalDimensions: job.originalDimensions,
-        thumbnailBlob: job.thumbnailBlob
+        thumbnailBlob: job.thumbnailBlob,
+        sourcePage: job.sourcePage
       }
     })
   } catch (error) {
@@ -261,6 +264,7 @@ export async function restoreQueueJobs(): Promise<Array<{
   file: File
   originalDimensions?: { width: number; height: number }
   thumbnailUrl?: string
+  sourcePage?: number
 }>> {
   try {
     const db = await getDB()
@@ -275,7 +279,8 @@ export async function restoreQueueJobs(): Promise<Array<{
         id: record.id,
         file: record.blob as File,
         originalDimensions: record.metadata?.originalDimensions,
-        thumbnailUrl
+        thumbnailUrl,
+        sourcePage: record.metadata?.sourcePage
       }
     })
   } catch (error) {

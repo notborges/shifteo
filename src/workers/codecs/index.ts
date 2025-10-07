@@ -3,7 +3,7 @@ import type { ImageConvertOpts } from '@/workers/types'
 export type AvailableCodec = 'png' | 'jpeg' | 'webp' | 'avif' | 'bmp' | 'tiff' | 'ico'
 
 interface CodecModule {
-  decode: (buffer: ArrayBuffer) => Promise<JSquashImageData>
+  decode: (buffer: ArrayBuffer, pageIndex?: number) => Promise<JSquashImageData>
   encode: (imageData: JSquashImageData, options?: unknown) => Promise<ArrayBuffer>
 }
 
@@ -119,7 +119,7 @@ export function detectFormat(bytes: Uint8Array): AvailableCodec | null {
   return null
 }
 
-export async function decodeImage(buffer: ArrayBuffer): Promise<JSquashImageData> {
+export async function decodeImage(buffer: ArrayBuffer, opts: { pageIndex?: number } = {}): Promise<JSquashImageData> {
   await ensureCodecsLoaded()
 
   const bytes = new Uint8Array(buffer)
@@ -137,17 +137,17 @@ export async function decodeImage(buffer: ArrayBuffer): Promise<JSquashImageData
     case 'bmp':
       return bmpCodec!.decode(buffer)
     case 'tiff':
-      return tiffCodec!.decode(buffer)
+      return tiffCodec!.decode(buffer, opts.pageIndex ?? 0)
     case 'ico':
       return icoCodec!.decode(buffer)
     default:
       // Try all decoders if detection failed
-      return fallbackDecode(buffer)
+      return fallbackDecode(buffer, opts)
   }
 }
 
-async function fallbackDecode(buffer: ArrayBuffer): Promise<JSquashImageData> {
-  const decoders: Array<CodecModule | { decode: (buffer: ArrayBuffer) => Promise<JSquashImageData> } | null> = [
+async function fallbackDecode(buffer: ArrayBuffer, opts: { pageIndex?: number }): Promise<JSquashImageData> {
+  const decoders: Array<CodecModule | { decode: (buffer: ArrayBuffer, pageIndex?: number) => Promise<JSquashImageData> } | null> = [
     pngModule,
     jpegModule,
     webpModule,
@@ -160,7 +160,7 @@ async function fallbackDecode(buffer: ArrayBuffer): Promise<JSquashImageData> {
   for (const decoder of decoders) {
     if (!decoder) continue
     try {
-      return await decoder.decode(buffer)
+      return await decoder.decode(buffer, opts.pageIndex)
     } catch {
       continue
     }

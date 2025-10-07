@@ -73,7 +73,8 @@ onMounted(async () => {
         kind: 'image',
         status: 'idle',
         originalDimensions: item.originalDimensions,
-        thumbnail: item.thumbnailUrl
+        thumbnail: item.thumbnailUrl,
+        sourcePage: item.sourcePage
       })
     }
 

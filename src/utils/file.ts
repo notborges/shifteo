@@ -188,12 +188,16 @@ export function generateFileId(): string {
 /**
  * Get image dimensions from file
  */
-export async function getImageDimensions(file: File): Promise<{ width: number; height: number } | null> {
+export async function getImageDimensions(
+  file: File,
+  options: { pageIndex?: number; buffer?: ArrayBuffer } = {}
+): Promise<{ width: number; height: number } | null> {
   const lowerName = file.name.toLowerCase()
 
   if (file.type === 'image/tiff' || lowerName.endsWith('.tif') || lowerName.endsWith('.tiff')) {
     return import('@/workers/codecs/local-tiff').then(async ({ decode }) => {
-      const image = await decode(await file.arrayBuffer())
+      const buffer = options.buffer ?? await file.arrayBuffer()
+      const image = await decode(buffer, options.pageIndex ?? 0)
       return { width: image.width, height: image.height }
     }).catch(() => null)
   }
@@ -294,7 +298,8 @@ async function generateSVGThumbnail(file: File, size: number): Promise<string | 
  */
 export async function generateThumbnail(
   file: File,
-  size: number = 48
+  size: number = 48,
+  options: { pageIndex?: number; buffer?: ArrayBuffer } = {}
 ): Promise<string | null> {
   try {
     // Special handling for SVG
@@ -308,7 +313,7 @@ export async function generateThumbnail(
       file.name.toLowerCase().endsWith('.tif') ||
       file.name.toLowerCase().endsWith('.tiff')
     ) {
-      return await generateTiffThumbnail(file, size)
+      return await generateTiffThumbnail(file, size, options.pageIndex ?? 0, options.buffer)
     }
 
     if (
@@ -316,7 +321,7 @@ export async function generateThumbnail(
       file.type === 'image/vnd.microsoft.icon' ||
       file.name.toLowerCase().endsWith('.ico')
     ) {
-      return await generateIcoThumbnail(file, size)
+      return await generateIcoThumbnail(file, size, options.buffer)
     }
 
     // Regular images
@@ -343,14 +348,14 @@ export async function generateThumbnail(
   }
 }
 
-async function generateTiffThumbnail(file: File, size: number): Promise<string | null> {
+async function generateTiffThumbnail(file: File, size: number, pageIndex: number, buffer?: ArrayBuffer): Promise<string | null> {
   try {
     const [{ decode }] = await Promise.all([
       import('@/workers/codecs/local-tiff')
     ])
 
-    const buffer = await file.arrayBuffer()
-    const imageData = await decode(buffer)
+    const dataBuffer = buffer ?? await file.arrayBuffer()
+    const imageData = await decode(dataBuffer, pageIndex)
     return await renderImageDataThumbnail(imageData, size)
   } catch (error) {
     console.error('Failed to render TIFF thumbnail:', error)
@@ -358,14 +363,14 @@ async function generateTiffThumbnail(file: File, size: number): Promise<string |
   }
 }
 
-async function generateIcoThumbnail(file: File, size: number): Promise<string | null> {
+async function generateIcoThumbnail(file: File, size: number, buffer?: ArrayBuffer): Promise<string | null> {
   try {
     const [{ decode }] = await Promise.all([
       import('@/workers/codecs/local-ico')
     ])
 
-    const buffer = await file.arrayBuffer()
-    const imageData = await decode(buffer)
+    const dataBuffer = buffer ?? await file.arrayBuffer()
+    const imageData = await decode(dataBuffer)
     return await renderImageDataThumbnail(imageData, size)
   } catch (error) {
     console.error('Failed to render ICO thumbnail:', error)

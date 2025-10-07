@@ -28,6 +28,7 @@
             <ArrowRight :size="10" class="inline mx-0.5" />
             {{ targetFormat?.toUpperCase() }}
           </div>
+          <div v-if="pageLabel" class="file-row__format-badge">{{ pageLabel }}</div>
         </div>
 
         <div class="file-row__meta mono">
@@ -109,14 +110,15 @@
             :alt="job.file.name"
             class="file-thumbnail-mobile"
           />
-          <div class="min-w-0 flex-1">
-            <div class="mono text-sm truncate">{{ job.file.name }}</div>
-            <div v-if="formatChanged" class="file-row__format-badge">
-              {{ originalFormat?.toUpperCase() }}
-              <ArrowRight :size="10" class="inline mx-0.5" />
-              {{ targetFormat?.toUpperCase() }}
-            </div>
-          </div>
+         <div class="min-w-0 flex-1">
+           <div class="mono text-sm truncate">{{ job.file.name }}</div>
+           <div v-if="formatChanged" class="file-row__format-badge">
+             {{ originalFormat?.toUpperCase() }}
+             <ArrowRight :size="10" class="inline mx-0.5" />
+             {{ targetFormat?.toUpperCase() }}
+           </div>
+            <div v-if="pageLabel" class="file-row__format-badge">{{ pageLabel }}</div>
+         </div>
         </div>
         <div class="file-row__actions flex-shrink-0">
           <UiButton
@@ -255,6 +257,10 @@ const dimensionsChanged = computed(() => {
   if (!props.job.originalDimensions || !props.job.outputDimensions) return false
   return props.job.originalDimensions.width !== props.job.outputDimensions.width ||
          props.job.originalDimensions.height !== props.job.outputDimensions.height
+})
+
+const pageLabel = computed(() => {
+  return props.job.sourcePage != null ? `Page ${props.job.sourcePage + 1}` : ''
 })
 
 const statusDotStyle = computed(() => {
