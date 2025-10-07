@@ -1538,3 +1538,298 @@ body {
     max-width: none;
   }
 }
+
+/* === Image Preview Modal === */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 12, 14, 0.95);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-24);
+}
+
+.modal-container {
+  position: relative;
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-line-key);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6), inset 0 0 0 1px var(--color-line-hair);
+  max-width: 1400px;
+  max-height: 90vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-16) var(--space-24);
+  border-bottom: 1px solid var(--color-line-key);
+  background: var(--color-bg-inset);
+}
+
+.modal-title {
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--space-8);
+  transition: color var(--motion-fast) ease;
+  border-radius: var(--radius-chip);
+}
+
+.modal-close:hover {
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-24);
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-12);
+  padding: var(--space-16) var(--space-24);
+  border-top: 1px solid var(--color-line-key);
+  background: var(--color-bg-inset);
+}
+
+.modal-comparison--desktop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.modal-comparison--mobile {
+  display: none;
+}
+
+.comparison-slider {
+  position: relative;
+  width: 100%;
+  height: 600px;
+  overflow: hidden;
+  border: 1px solid var(--color-line-key);
+  border-radius: var(--radius-panel);
+  background: var(--color-bg-inset);
+  user-select: none;
+}
+
+.comparison-before,
+.comparison-after {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comparison-before img,
+.comparison-after img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.comparison-label {
+  font-family: var(--font-ui-mono);
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.comparison-label--overlay {
+  position: absolute;
+  top: var(--space-16);
+  background: rgba(11, 12, 14, 0.9);
+  padding: var(--space-8) var(--space-16);
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--color-line-key);
+}
+
+.comparison-before .comparison-label--overlay {
+  left: var(--space-16);
+}
+
+.comparison-after .comparison-label--overlay {
+  right: var(--space-16);
+}
+
+.comparison-divider-slider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-acc-info);
+  cursor: ew-resize;
+  transform: translateX(-1px);
+  box-shadow: 0 0 12px rgba(67, 198, 224, 0.5);
+}
+
+.comparison-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 48px;
+  height: 48px;
+  background: var(--color-bg-panel);
+  border: 2px solid var(--color-acc-info);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--color-acc-info);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 16px rgba(67, 198, 224, 0.3);
+  cursor: ew-resize;
+  transition: transform var(--motion-fast) ease;
+}
+
+.comparison-handle:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.comparison-handle:active {
+  transform: translate(-50%, -50%) scale(0.95);
+}
+
+.comparison-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-24);
+  padding: var(--space-16);
+  background: var(--color-bg-inset);
+  border-radius: var(--radius-panel);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.stat-label {
+  font-family: var(--font-ui-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.stat-value {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.stat-divider {
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 0;
+  }
+
+  .modal-container {
+    max-height: 100vh;
+    border-radius: 0;
+    height: 100vh;
+  }
+
+  .modal-comparison--desktop {
+    display: none;
+  }
+
+  .modal-comparison--mobile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-16);
+  }
+
+  .comparison-panel-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-12);
+  }
+
+  .comparison-image-container-mobile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-line-key);
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+    min-height: 200px;
+  }
+
+  .comparison-image-mobile {
+    max-width: 100%;
+    max-height: 40vh;
+    object-fit: contain;
+  }
+
+  .comparison-meta-mobile {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8);
+    justify-content: center;
+    font-family: var(--font-ui-mono);
+    font-size: 11px;
+    color: var(--color-text-secondary);
+  }
+
+  .modal-footer {
+    flex-direction: column;
+  }
+
+  .modal-footer button {
+    width: 100%;
+  }
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity var(--motion-normal) ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-active .modal-container,
+.modal-leave-active .modal-container {
+  transition: transform var(--motion-normal) ease, opacity var(--motion-normal) ease;
+}
+
+.modal-enter-from .modal-container,
+.modal-leave-to .modal-container {
+  opacity: 0;
+  transform: scale(0.95);
+}

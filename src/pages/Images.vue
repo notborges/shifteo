@@ -33,6 +33,7 @@
               @download="handleDownload"
               @retry="handleRetry"
               @remove="queueStore.removeJob"
+              @preview="openPreview"
             />
           </div>
         </div>
@@ -284,6 +285,13 @@
         </div>
       </div>
     </div>
+
+    <ImagePreviewModal
+      :job="previewJob"
+      :isOpen="showPreview"
+      @close="closePreview"
+      @download="handleDownload"
+    />
   </div>
 </template>
 
@@ -293,6 +301,7 @@ import DropZone from '@/components/DropZone.vue'
 import FileListItem from '@/components/FileListItem.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiPanel from '@/components/ui/UiPanel.vue'
+import ImagePreviewModal from '@/components/ImagePreviewModal.vue'
 import { useQueueStore } from '@/app/stores/queue'
 import { useSettingsStore } from '@/app/stores/settings'
 import { useToastStore } from '@/app/stores/toast'
@@ -349,6 +358,21 @@ const customHeight = ref<number | undefined>(undefined)
 
 // Auto-download
 const autoDownload = ref(false)
+
+// Preview modal
+const previewJob = ref<Job | null>(null)
+const showPreview = ref(false)
+
+function openPreview(job: Job) {
+  if (job.status !== 'completed' || !job.result) return
+  previewJob.value = job
+  showPreview.value = true
+}
+
+function closePreview() {
+  showPreview.value = false
+  previewJob.value = null
+}
 
 // Settings preview
 const settingsPreview = computed(() => {

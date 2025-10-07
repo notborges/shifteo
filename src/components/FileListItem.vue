@@ -2,7 +2,11 @@
   <div class="file-item">
     <!-- Desktop layout -->
     <div class="file-item__desktop">
-      <div class="file-row">
+      <div
+        class="file-row"
+        :class="{ 'cursor-pointer': job.status === 'completed' && job.result }"
+        @click="job.status === 'completed' && job.result && emit('preview', job)"
+      >
         <div class="file-row__status">
           <span class="status-dot" :style="statusDotStyle" />
         </div>
@@ -201,6 +205,7 @@ const emit = defineEmits<{
   download: [job: Job]
   retry: [id: string]
   remove: [id: string]
+  preview: [job: Job]
 }>()
 
 const sizeChangePercent = computed(() => {
