@@ -213,6 +213,18 @@ const imageLicenses: LicenseItem[] = [
     description: 'AVIF encoding/decoding library',
     license: 'BSD-2-Clause',
     url: 'https://github.com/AOMediaCodec/libavif'
+  },
+  {
+    name: 'UTIF.js',
+    description: 'TIFF decoder/encoder for browser environments',
+    license: 'MIT',
+    url: 'https://github.com/photopea/UTIF.js'
+  },
+  {
+    name: 'icojs',
+    description: 'ICO parsing utilities used for icon support',
+    license: 'MIT',
+    url: 'https://github.com/egy186/icojs'
   }
 ]
 

@@ -31,7 +31,7 @@
         <UiPanel :hoverable="true">
           <template #header>
             <span>Images</span>
-            <span class="panel__meta">PNG · JPEG · WEBP · AVIF</span>
+            <span class="panel__meta">PNG · JPEG · WEBP · AVIF · TIFF · BMP · ICO</span>
           </template>
           <p class="body-text text-text-secondary">
             Shift image formats, compress, and resize without uploading. Process files in batches with optional metadata removal.

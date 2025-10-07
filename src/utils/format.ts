@@ -11,8 +11,8 @@ export interface FormatCapability {
 
 export const CAPABILITIES = {
   image: {
-    input: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'svg'] as const,
-    output: ['png', 'jpeg', 'webp', 'avif'] as const,
+    input: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'svg', 'bmp', 'tif', 'tiff', 'ico'] as const,
+    output: ['png', 'jpeg', 'webp', 'avif', 'bmp', 'tiff', 'ico'] as const,
     maxMb: 100,
   },
   document: {
@@ -31,6 +31,10 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/webp': 'webp',
   'image/avif': 'avif',
   'image/svg+xml': 'svg',
+  'image/bmp': 'bmp',
+  'image/tiff': 'tiff',
+  'image/x-icon': 'ico',
+  'image/vnd.microsoft.icon': 'ico',
   'application/pdf': 'pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
   'text/html': 'html',
@@ -43,6 +47,10 @@ const EXT_TO_MIME: Record<string, string> = {
   'webp': 'image/webp',
   'avif': 'image/avif',
   'svg': 'image/svg+xml',
+  'bmp': 'image/bmp',
+  'tif': 'image/tiff',
+  'tiff': 'image/tiff',
+  'ico': 'image/vnd.microsoft.icon',
   'pdf': 'application/pdf',
   'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'html': 'text/html',
@@ -155,6 +163,7 @@ export function generateOutputFilename(
 }
 
 export type OriginalImageFormat = 'png' | 'jpeg' | 'webp' | 'avif' | 'svg'
+  | 'bmp' | 'tiff' | 'ico'
 
 /**
  * Infer the original image format label from a filename or MIME type.
@@ -174,6 +183,13 @@ export function inferOriginalImageFormat(file: File): OriginalImageFormat | null
       return 'avif'
     case 'svg':
       return 'svg'
+    case 'bmp':
+      return 'bmp'
+    case 'tif':
+    case 'tiff':
+      return 'tiff'
+    case 'ico':
+      return 'ico'
     default:
       return null
   }

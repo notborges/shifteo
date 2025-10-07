@@ -14,6 +14,8 @@ describe('format utilities', () => {
     expect(inferOriginalImageFormat(fakeFile('photo.JPG'))).toBe('jpeg')
     expect(inferOriginalImageFormat(fakeFile('icon.png'))).toBe('png')
     expect(inferOriginalImageFormat(fakeFile('vector.svg', 'image/svg+xml'))).toBe('svg')
+    expect(inferOriginalImageFormat(fakeFile('scan.tiff'))).toBe('tiff')
+    expect(inferOriginalImageFormat(fakeFile('favicon.ico', 'image/x-icon'))).toBe('ico')
     expect(inferOriginalImageFormat(fakeFile('unknown.bin'))).toBeNull()
   })
 

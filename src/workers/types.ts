@@ -2,7 +2,7 @@
 
 // === Image Worker Types ===
 
-export type ImageFormat = 'png' | 'jpeg' | 'webp' | 'avif'
+export type ImageFormat = 'png' | 'jpeg' | 'webp' | 'avif' | 'bmp' | 'tiff' | 'ico'
 
 export interface ImageConvertOpts {
   to: ImageFormat

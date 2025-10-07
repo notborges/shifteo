@@ -1191,6 +1191,19 @@ body {
   color: var(--color-text-secondary);
 }
 
+.formats-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-8);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+.formats-meta span {
+  white-space: nowrap;
+}
+
 .drop-zone--active {
   border-color: var(--color-acc-error);
   box-shadow: var(--shadow-glow-error-md);

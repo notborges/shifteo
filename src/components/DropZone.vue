@@ -21,11 +21,13 @@
     </div>
 
     <div class="drop-zone__formats">
-      <span class="drop-zone__chip">PNG</span>
-      <span class="drop-zone__chip">JPEG</span>
-      <span class="drop-zone__chip">WEBP</span>
-      <span class="drop-zone__chip">AVIF</span>
-      <span class="drop-zone__chip">SVG</span>
+      <span
+        v-for="format in formatLabels"
+        :key="format"
+        class="drop-zone__chip"
+      >
+        {{ format }}
+      </span>
     </div>
 
     <input
@@ -41,19 +43,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Upload } from 'lucide-vue-next'
 
 interface Props {
   multiple?: boolean
   accept?: string
   disabled?: boolean
+  formats?: string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   multiple: true,
   accept: '',
-  disabled: false
+  disabled: false,
+  formats: () => ['PNG', 'JPEG', 'WEBP', 'AVIF', 'SVG']
 })
 
 const emit = defineEmits<{
@@ -63,6 +67,7 @@ const emit = defineEmits<{
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const isDragging = ref(false)
+const formatLabels = computed(() => props.formats)
 
 function handleClick() {
   if (props.disabled) return

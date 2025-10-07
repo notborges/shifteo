@@ -189,6 +189,33 @@ export function generateFileId(): string {
  * Get image dimensions from file
  */
 export async function getImageDimensions(file: File): Promise<{ width: number; height: number } | null> {
+  const lowerName = file.name.toLowerCase()
+
+  if (file.type === 'image/tiff' || lowerName.endsWith('.tif') || lowerName.endsWith('.tiff')) {
+    return import('@/workers/codecs/local-tiff').then(async ({ decode }) => {
+      const image = await decode(await file.arrayBuffer())
+      return { width: image.width, height: image.height }
+    }).catch(() => null)
+  }
+
+  if (
+    file.type === 'image/x-icon' ||
+    file.type === 'image/vnd.microsoft.icon' ||
+    lowerName.endsWith('.ico')
+  ) {
+    return import('@/workers/codecs/local-ico').then(async ({ decode }) => {
+      const image = await decode(await file.arrayBuffer())
+      return { width: image.width, height: image.height }
+    }).catch(() => null)
+  }
+
+  if (file.type === 'image/bmp' || lowerName.endsWith('.bmp')) {
+    return import('@/workers/codecs/local-bmp').then(async ({ decode }) => {
+      const image = await decode(await file.arrayBuffer())
+      return { width: image.width, height: image.height }
+    }).catch(() => null)
+  }
+
   return new Promise((resolve) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
@@ -239,14 +266,14 @@ async function generateSVGThumbnail(file: File, size: number): Promise<string | 
 
         ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight)
 
-        canvas.toBlob((thumbBlob) => {
-          URL.revokeObjectURL(url)
-          if (thumbBlob) {
-            resolve(URL.createObjectURL(thumbBlob))
-          } else {
-            resolve(null)
-          }
-        }, 'image/jpeg', 0.8)
+    canvas.toBlob((thumbBlob) => {
+      URL.revokeObjectURL(url)
+      if (thumbBlob) {
+        resolve(URL.createObjectURL(thumbBlob))
+      } else {
+        resolve(null)
+      }
+    }, 'image/png', 0.9)
       }
 
       img.onerror = () => {
@@ -275,6 +302,23 @@ export async function generateThumbnail(
       return await generateSVGThumbnail(file, size)
     }
 
+    // TIFF thumbnails require manual decode because browsers do not natively render them
+    if (
+      file.type === 'image/tiff' ||
+      file.name.toLowerCase().endsWith('.tif') ||
+      file.name.toLowerCase().endsWith('.tiff')
+    ) {
+      return await generateTiffThumbnail(file, size)
+    }
+
+    if (
+      file.type === 'image/x-icon' ||
+      file.type === 'image/vnd.microsoft.icon' ||
+      file.name.toLowerCase().endsWith('.ico')
+    ) {
+      return await generateIcoThumbnail(file, size)
+    }
+
     // Regular images
     const bitmap = await createImageBitmap(file)
     const canvas = new OffscreenCanvas(size, size)
@@ -297,4 +341,87 @@ export async function generateThumbnail(
     console.error('Failed to generate thumbnail:', error)
     return null
   }
+}
+
+async function generateTiffThumbnail(file: File, size: number): Promise<string | null> {
+  try {
+    const [{ decode }] = await Promise.all([
+      import('@/workers/codecs/local-tiff')
+    ])
+
+    const buffer = await file.arrayBuffer()
+    const imageData = await decode(buffer)
+    return await renderImageDataThumbnail(imageData, size)
+  } catch (error) {
+    console.error('Failed to render TIFF thumbnail:', error)
+    return null
+  }
+}
+
+async function generateIcoThumbnail(file: File, size: number): Promise<string | null> {
+  try {
+    const [{ decode }] = await Promise.all([
+      import('@/workers/codecs/local-ico')
+    ])
+
+    const buffer = await file.arrayBuffer()
+    const imageData = await decode(buffer)
+    return await renderImageDataThumbnail(imageData, size)
+  } catch (error) {
+    console.error('Failed to render ICO thumbnail:', error)
+    return null
+  }
+}
+
+async function renderImageDataThumbnail(imageData: { data: Uint8ClampedArray | Uint8Array; width: number; height: number }, size: number): Promise<string | null> {
+  const scale = Math.min(size / imageData.width, size / imageData.height, 1)
+  const targetWidth = Math.max(1, Math.round(imageData.width * scale))
+  const targetHeight = Math.max(1, Math.round(imageData.height * scale))
+
+  const sourceCanvas = createCanvas(imageData.width, imageData.height)
+  const sourceCtx = sourceCanvas.getContext('2d')
+  if (!sourceCtx) {
+    return null
+  }
+
+  const data = imageData.data instanceof Uint8ClampedArray
+    ? imageData.data
+    : new Uint8ClampedArray(imageData.data)
+
+  sourceCtx.putImageData(new ImageData(data, imageData.width, imageData.height), 0, 0)
+
+  const outputCanvas = createCanvas(size, size)
+  const outputCtx = outputCanvas.getContext('2d')
+  if (!outputCtx) {
+    return null
+  }
+
+  outputCtx.clearRect(0, 0, size, size)
+
+  const offsetX = (size - targetWidth) / 2
+  const offsetY = (size - targetHeight) / 2
+  outputCtx.drawImage(sourceCanvas as any, 0, 0, imageData.width, imageData.height, offsetX, offsetY, targetWidth, targetHeight)
+
+  const blob = await canvasToBlob(outputCanvas)
+  return blob ? URL.createObjectURL(blob) : null
+}
+
+function createCanvas(width: number, height: number): OffscreenCanvas | HTMLCanvasElement {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    return new OffscreenCanvas(width, height)
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  return canvas
+}
+
+async function canvasToBlob(canvas: OffscreenCanvas | HTMLCanvasElement): Promise<Blob | null> {
+  if (canvas instanceof OffscreenCanvas) {
+    return canvas.convertToBlob({ type: 'image/png' })
+  }
+
+  return await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(blob => resolve(blob), 'image/png')
+  })
 }

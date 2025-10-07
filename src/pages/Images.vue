@@ -19,10 +19,13 @@
       <UiPanel :inset="true" class="col-span-12">
         <template #header>
           <span>Add Images</span>
-          <span class="panel__meta">Accepts PNG · JPEG · WEBP · AVIF · SVG</span>
+          <div class="panel__meta formats-meta">
+            <span v-for="label in dropzoneFormats" :key="label">{{ label }}</span>
+          </div>
         </template>
         <DropZone
-          accept="image/png,image/jpeg,image/jpg,image/webp,image/avif,image/svg+xml"
+          :accept="acceptString"
+          :formats="dropzoneFormats"
           @files-selected="handleFilesSelected"
           @drop-complete="clearPageDragState"
         />
@@ -81,7 +84,7 @@
           <span class="panel__meta">Select one target</span>
         </div>
         <div class="panel__body">
-          <div class="grid sm:grid-cols-2 gap-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
             <UiButton
               v-for="format in formatOptions"
               :key="format.value"
@@ -106,11 +109,11 @@
       <div class="panel col-span-12 xl:col-span-6">
         <div class="panel__header">
           <span>Quality Controls</span>
-          <span class="panel__meta" v-if="options.to !== 'png' && options.to !== 'original'">Adjust compression and metadata</span>
+          <span class="panel__meta" v-if="showQualitySlider">Adjust compression and metadata</span>
           <span class="panel__meta" v-else>Lossless mode</span>
         </div>
         <div class="panel__body gap-6">
-          <div v-if="options.to !== 'png' && options.to !== 'original'">
+          <div v-if="showQualitySlider">
             <div class="flex gap-2 mb-3">
               <UiButton
                 v-for="preset in qualityPresets"
@@ -152,6 +155,10 @@
 
           <p class="body-text text-text-muted">
             Metadata removal protects privacy by eliminating EXIF signatures. Leave disabled to preserve camera and author details.
+          </p>
+
+          <p v-if="!showQualitySlider" class="body-text text-text-secondary text-xs">
+            {{ options.to === 'original' ? 'Quality is unchanged because the original format is preserved.' : 'Selected format is lossless; file size depends on image content.' }}
           </p>
         </div>
       </div>
@@ -332,6 +339,25 @@ const queueStore = useQueueStore()
 const settingsStore = useSettingsStore()
 const toastStore = useToastStore()
 
+const acceptedFormats = [
+  { label: 'PNG', mime: 'image/png' },
+  { label: 'JPEG', mime: 'image/jpeg' },
+  { label: 'WEBP', mime: 'image/webp' },
+  { label: 'AVIF', mime: 'image/avif' },
+  { label: 'SVG', mime: 'image/svg+xml' },
+  { label: 'TIFF', mime: 'image/tiff' },
+  { label: 'BMP', mime: 'image/bmp' },
+  { label: 'ICO', mime: 'image/x-icon' },
+  { label: 'ICO', mime: 'image/vnd.microsoft.icon' }
+]
+
+const acceptString = computed(() => acceptedFormats.map(entry => entry.mime).join(','))
+const dropzoneFormats = computed(() => {
+  const labels = new Set<string>()
+  acceptedFormats.forEach(entry => labels.add(entry.label))
+  return Array.from(labels)
+})
+
 type UiImageFormat = ImageFormat | 'original'
 type UiImageOptions = Omit<ImageConvertOpts, 'to'> & {
   to: UiImageFormat
@@ -340,11 +366,14 @@ type UiImageOptions = Omit<ImageConvertOpts, 'to'> & {
 }
 
 const formatOptions: Array<{ value: UiImageFormat; desc: string }> = [
-  { value: 'original' as const, desc: 'KEEP ORIGINAL' },
+  { value: 'original' as const, desc: 'KEEP' },
   { value: 'png' as ImageFormat, desc: 'LOSSLESS' },
   { value: 'jpeg' as ImageFormat, desc: 'SMALLEST' },
   { value: 'webp' as ImageFormat, desc: 'BALANCED' },
-  { value: 'avif' as ImageFormat, desc: 'MODERN' }
+  { value: 'avif' as ImageFormat, desc: 'MODERN' },
+  { value: 'bmp' as ImageFormat, desc: 'LEGACY' },
+  { value: 'tiff' as ImageFormat, desc: 'ARCHIVAL' },
+  { value: 'ico' as ImageFormat, desc: 'ICON' }
 ]
 
 const qualityPresets = [
@@ -358,8 +387,17 @@ const formatHints: Record<string, string> = {
   png: 'Lossless - Best for graphics, screenshots, transparency',
   jpeg: 'Lossy - Smallest files, best for photos',
   webp: 'Modern - Better compression, wide browser support',
-  avif: 'Best compression - Slower encoding, newer format'
+  avif: 'Best compression - Slower encoding, newer format',
+  bmp: 'Legacy - 32-bit bitmap for compatibility with older systems',
+  tiff: 'Archival - Lossless, high bit depth support (larger files)',
+  ico: 'Icon - Windows-compatible favicon container'
 }
+
+const losslessFormats = new Set(['png', 'bmp', 'tiff', 'ico'])
+const showQualitySlider = computed(() => {
+  const target = options.value.to
+  return target !== 'original' && !losslessFormats.has(target as string)
+})
 
 const options = ref<UiImageOptions>({
   to: settingsStore.defaultImageFormat,
