@@ -322,7 +322,7 @@ import { useQueueStore } from '@/app/stores/queue'
 import { useSettingsStore } from '@/app/stores/settings'
 import { useToastStore } from '@/app/stores/toast'
 import { imageWorkerPool as imageWorker } from '@/workers/workerPool'
-import { isFormatSupported, generateOutputFilename, formatFileSize } from '@/utils/format'
+import { isFormatSupported, generateOutputFilename, formatFileSize, inferProcessingFormat } from '@/utils/format'
 import { getImageDimensions, generateThumbnail, downloadFile, downloadAsZip } from '@/utils/file'
 import { storeQueueJob, removeQueueJob } from '@/utils/idb'
 import { Upload, ListX } from 'lucide-vue-next'
@@ -527,19 +527,9 @@ watch(
   }
 )
 
-function detectFormatFromFile(file: File): ImageFormat {
-  const ext = file.name.split('.').pop()?.toLowerCase()
-  if (ext === 'png') return 'png'
-  if (ext === 'jpg' || ext === 'jpeg') return 'jpeg'
-  if (ext === 'webp') return 'webp'
-  if (ext === 'avif') return 'avif'
-  if (ext === 'svg') return 'png'  // SVG defaults to PNG output
-  return 'png'
-}
-
 function getJobTargetFormat(job: Job): ImageFormat {
   // Use the actual output format from conversion, or fall back to detecting from original file
-  return job.outputFormat || detectFormatFromFile(job.file)
+  return job.outputFormat || inferProcessingFormat(job.file)
 }
 
 async function convertSVGToPNG(file: File, targetSize: number): Promise<Blob> {
@@ -703,7 +693,7 @@ async function startConversion() {
         queueStore.updateJobStatus(job.id, 'running')
 
         const targetFormat = options.value.to === 'original'
-          ? detectFormatFromFile(job.file)
+          ? inferProcessingFormat(job.file)
           : options.value.to
 
         let fileToProcess = job.file
@@ -719,6 +709,11 @@ async function startConversion() {
             type: 'image/png'
           })
         }
+
+        queueStore.updateJob(job.id, {
+          outputFormat: targetFormat,
+          outputDimensions: undefined
+        })
 
         const result = await imageWorker.convert(
           fileToProcess,

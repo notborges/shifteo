@@ -202,7 +202,7 @@ import { computed } from 'vue'
 import { Download, RotateCw, X, ArrowRight, ImageIcon } from 'lucide-vue-next'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Job } from '@/workers/types'
-import { formatFileSize } from '@/utils/format'
+import { formatFileSize, inferOriginalImageFormat } from '@/utils/format'
 
 interface Props {
   job: Job
@@ -236,29 +236,12 @@ const sizeChangeClass = computed(() => {
   return newSize < originalSize ? 'text-success' : 'text-warning'
 })
 
-const originalFormat = computed(() => {
-  const ext = props.job.file.name.split('.').pop()?.toLowerCase()
-  if (ext === 'jpg' || ext === 'jpeg') return 'jpeg'
-  if (ext === 'png') return 'png'
-  if (ext === 'webp') return 'webp'
-  if (ext === 'avif') return 'avif'
-  if (ext === 'svg') return 'svg'
-  return null
-})
+const originalFormat = computed(() => inferOriginalImageFormat(props.job.file))
 
-const targetFormat = computed(() => {
-  const opts = props.job.options as any
-  if (!opts?.to) return null
-  if (opts.to === 'original') return originalFormat.value
-  return opts.to
-})
+const targetFormat = computed(() => props.job.outputFormat ?? null)
 
 const formatChanged = computed(() => {
   if (!originalFormat.value || !targetFormat.value) return false
-  if (targetFormat.value === 'original') return false
-
-  // Don't show format badge for idle jobs (options might be stale from storage)
-  if (props.job.status === 'idle') return false
 
   return originalFormat.value !== targetFormat.value
 })

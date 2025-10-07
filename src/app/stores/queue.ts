@@ -154,6 +154,8 @@ export const useQueueStore = defineStore('queue', {
         job.error = undefined
         job.result = undefined
         job.completedAt = undefined
+        job.outputDimensions = undefined
+        job.outputFormat = undefined
       }
     }
   }

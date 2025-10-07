@@ -151,7 +151,7 @@
 import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
 import { X, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import UiButton from './ui/UiButton.vue'
-import { formatFileSize } from '@/utils/format'
+import { formatFileSize, inferOriginalImageFormat } from '@/utils/format'
 import type { Job } from '@/workers/types'
 
 interface Props {
@@ -216,23 +216,9 @@ const sizeChangeClass = computed(() => {
   return resultSize.value < props.job.file.size ? 'text-success' : 'text-warning'
 })
 
-const originalFormat = computed(() => {
-  if (!props.job) return null
-  const ext = props.job.file.name.split('.').pop()?.toLowerCase()
-  if (ext === 'jpg' || ext === 'jpeg') return 'jpeg'
-  if (ext === 'png') return 'png'
-  if (ext === 'webp') return 'webp'
-  if (ext === 'avif') return 'avif'
-  return null
-})
+const originalFormat = computed(() => (props.job ? inferOriginalImageFormat(props.job.file) : null))
 
-const targetFormat = computed(() => {
-  if (!props.job) return null
-  const opts = props.job.options as any
-  if (!opts?.to) return null
-  if (opts.to === 'original') return originalFormat.value
-  return opts.to
-})
+const targetFormat = computed(() => props.job?.outputFormat ?? null)
 
 const formatChanged = computed(() => {
   if (!originalFormat.value || !targetFormat.value) return false

@@ -190,6 +190,17 @@ function detectFormat(bytes: Uint8Array): 'png' | 'jpeg' | 'webp' | 'avif' | nul
   if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return 'png'
   if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) return 'jpeg'
   if (bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return 'webp'
+
+  // AVIF is an ISO-BMFF container with an ftyp box whose brand starts with "av"
+  if (
+    bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70
+  ) {
+    const brand = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11])
+    if (brand === 'avif' || brand === 'avis' || brand === 'av01') {
+      return 'avif'
+    }
+  }
+
   return null
 }
 
@@ -306,6 +317,7 @@ self.addEventListener('message', async (event: MessageEvent) => {
     // Wait for modules to load before processing
     if (!modulesReady) {
       console.log('[Worker] Waiting for modules to load...')
+      self.postMessage({ id, type: 'stage', stage: 'Loading codecs…' })
       await moduleLoadPromise
       console.log('[Worker] Modules loaded, proceeding')
     }

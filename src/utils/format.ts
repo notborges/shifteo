@@ -1,6 +1,6 @@
 // Format capabilities and detection utilities
 
-import type { JobKind } from '@/workers/types'
+import type { JobKind, ImageFormat } from '@/workers/types'
 
 export interface FormatCapability {
   input: readonly string[]
@@ -152,4 +152,40 @@ export function generateOutputFilename(
     .replace('${ext}', format)
     .replace('${w}', metadata?.width?.toString() ?? '')
     .replace('${h}', metadata?.height?.toString() ?? '')
+}
+
+export type OriginalImageFormat = 'png' | 'jpeg' | 'webp' | 'avif' | 'svg'
+
+/**
+ * Infer the original image format label from a filename or MIME type.
+ */
+export function inferOriginalImageFormat(file: File): OriginalImageFormat | null {
+  const ext = getExtensionFromMime(file.type) || getFileExtension(file.name)
+
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg':
+      return 'jpeg'
+    case 'png':
+      return 'png'
+    case 'webp':
+      return 'webp'
+    case 'avif':
+      return 'avif'
+    case 'svg':
+      return 'svg'
+    default:
+      return null
+  }
+}
+
+/**
+ * Infer the default processing format for a file. SVG falls back to PNG.
+ */
+export function inferProcessingFormat(file: File): ImageFormat {
+  const inferred = inferOriginalImageFormat(file)
+  if (!inferred || inferred === 'svg') {
+    return 'png'
+  }
+  return inferred
 }
