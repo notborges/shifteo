@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { Job, JobStatus } from '@/workers/types'
 import { generateFileId } from '@/utils/file'
+import { removeQueueJob as removeFromIDB, clearAllTempFiles } from '@/utils/idb'
 
 interface QueueState {
   jobs: Job[]
@@ -85,7 +86,7 @@ export const useQueueStore = defineStore('queue', {
       }
     },
 
-    removeJob(id: string) {
+    async removeJob(id: string) {
       const job = this.jobs.find(j => j.id === id)
       if (job?.thumbnail) {
         try {
@@ -98,32 +99,41 @@ export const useQueueStore = defineStore('queue', {
       if (index !== -1) {
         this.jobs.splice(index, 1)
       }
+
+      // Remove from IndexedDB
+      await removeFromIDB(id)
     },
 
-    clearCompleted() {
+    async clearCompleted() {
+      const completedIds = this.jobs.filter(j => j.status === 'completed').map(j => j.id)
+
       this.jobs.filter(j => j.status === 'completed').forEach(j => {
         if (j.thumbnail) {
           try {
             URL.revokeObjectURL(j.thumbnail)
-          } catch (e) {
-            console.warn('Failed to revoke thumbnail URL:', e)
-          }
+          } catch (e) {}
         }
       })
       this.jobs = this.jobs.filter(j => j.status !== 'completed')
+
+      // Remove from IndexedDB
+      for (const id of completedIds) {
+        await removeFromIDB(id)
+      }
     },
 
-    clearAll() {
+    async clearAll() {
       this.jobs.forEach(j => {
         if (j.thumbnail) {
           try {
             URL.revokeObjectURL(j.thumbnail)
-          } catch (e) {
-            console.warn('Failed to revoke thumbnail URL:', e)
-          }
+          } catch (e) {}
         }
       })
       this.jobs = []
+
+      // Clear all from IndexedDB
+      await clearAllTempFiles()
     },
 
     retryJob(id: string) {

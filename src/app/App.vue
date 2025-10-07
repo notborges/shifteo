@@ -45,9 +45,14 @@ import MobileNav from '@/components/MobileNav.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiToast from '@/components/ui/UiToast.vue'
 import { useSettingsStore } from '@/app/stores/settings'
+import { useQueueStore } from '@/app/stores/queue'
+import { useToastStore } from '@/app/stores/toast'
+import { cleanupOldTempFiles, restoreQueueJobs } from '@/utils/idb'
 import { HelpCircle, MoonStar, UserRound } from 'lucide-vue-next'
 
 const settingsStore = useSettingsStore()
+const queueStore = useQueueStore()
+const toastStore = useToastStore()
 const route = useRoute()
 
 const topTitle = computed(() => (route.meta.title as string) ?? 'Shifteo')
@@ -57,6 +62,37 @@ const lastUpdated = ref(formatTimestamp(new Date()))
 onMounted(async () => {
   await settingsStore.loadSettings()
   settingsStore.applyDarkMode()
+
+  // Clean up files older than 24 hours
+  const cleaned = await cleanupOldTempFiles(24 * 60 * 60 * 1000)
+  if (cleaned > 0) {
+    console.log(`[App] Cleaned ${cleaned} old files from storage`)
+  }
+
+  // Restore queue once at app level
+  const restored = await restoreQueueJobs()
+  if (restored.length > 0) {
+    for (const item of restored) {
+      queueStore.addJob({
+        file: item.file,
+        kind: 'image',
+        status: 'idle',
+        originalDimensions: item.originalDimensions,
+        thumbnail: item.thumbnailUrl,
+        options: item.options
+      })
+    }
+
+    console.log(`[App] Restored ${restored.length} files from previous session`)
+
+    // Show toast only if on images page
+    if (route.path === '/images') {
+      toastStore.info(
+        'Queue Restored',
+        `${restored.length} file${restored.length > 1 ? 's' : ''} from previous session`
+      )
+    }
+  }
 })
 
 watch(

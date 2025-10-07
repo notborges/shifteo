@@ -25,27 +25,32 @@
           <div class="modal-body">
             <div class="modal-comparison modal-comparison--desktop">
               <div class="comparison-slider" ref="sliderContainer">
-                <div class="comparison-before">
-                  <img
-                    v-if="originalImageUrl"
-                    :src="originalImageUrl"
-                    class="comparison-image"
-                    alt="Before"
-                  />
-                  <div class="comparison-label comparison-label--overlay">BEFORE</div>
-                </div>
-
-                <div
-                  class="comparison-after"
-                  :style="{ clipPath: `inset(0 0 0 ${sliderPosition}%)` }"
-                >
+                <div class="comparison-layer">
                   <img
                     v-if="processedImageUrl"
                     :src="processedImageUrl"
                     class="comparison-image"
                     alt="After"
                   />
-                  <div class="comparison-label comparison-label--overlay">AFTER</div>
+                </div>
+
+                <div
+                  class="comparison-layer comparison-layer--overlay"
+                  :style="{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }"
+                >
+                  <img
+                    v-if="originalImageUrl"
+                    :src="originalImageUrl"
+                    class="comparison-image"
+                    alt="Before"
+                  />
+                </div>
+
+                <div class="comparison-label comparison-label--overlay comparison-label--left">
+                  BEFORE
+                </div>
+                <div class="comparison-label comparison-label--overlay comparison-label--right">
+                  AFTER
                 </div>
 
                 <div

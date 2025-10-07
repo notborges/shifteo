@@ -308,6 +308,7 @@ import { useToastStore } from '@/app/stores/toast'
 import { imageWorkerPool as imageWorker } from '@/workers/workerPool'
 import { isFormatSupported, generateOutputFilename, formatFileSize } from '@/utils/format'
 import { getImageDimensions, generateThumbnail, downloadFile, downloadAsZip } from '@/utils/file'
+import { storeQueueJob } from '@/utils/idb'
 import { Upload, ListX } from 'lucide-vue-next'
 import type { ImageConvertOpts, ImageFormat, Job } from '@/workers/types'
 
@@ -515,12 +516,32 @@ async function handleFilesSelected(files: File[]) {
       generateThumbnail(file, 48)
     ])
 
-    queueStore.addJob({
+    // Convert thumbnail URL to blob for storage
+    let thumbnailBlob: Blob | undefined
+    if (thumbnail) {
+      try {
+        const response = await fetch(thumbnail)
+        thumbnailBlob = await response.blob()
+      } catch (e) {
+        console.warn('Failed to convert thumbnail to blob')
+      }
+    }
+
+    const jobId = queueStore.addJob({
       file,
       kind: 'image',
       status: 'idle',
       originalDimensions: dimensions || undefined,
       thumbnail: thumbnail || undefined,
+      options: toRaw(options.value)
+    })
+
+    // Store in IndexedDB for persistence
+    await storeQueueJob({
+      id: jobId,
+      file,
+      originalDimensions: dimensions || undefined,
+      thumbnailBlob,
       options: toRaw(options.value)
     })
 

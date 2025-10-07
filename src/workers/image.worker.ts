@@ -110,14 +110,11 @@ async function encodeImage(
   switch (format) {
     case 'png': {
       const encoded = await encodePng(imageData)
-      // Skip PNG optimization for large images (>2MP) to avoid 8-10s delay
+      // Always optimize, but use faster level for large images
       const pixelCount = imageData.width * imageData.height
-      if (pixelCount > 4000000) {
-        console.log('[Worker] Large PNG, skipping optimization for speed')
-        return encoded
-      }
-      console.log('[Worker] Optimizing PNG...')
-      return await optimisePng(encoded, { level: 2 })
+      const level = pixelCount > 4000000 ? 1 : 2
+      console.log(`[Worker] Optimizing PNG with level ${level}`)
+      return await optimisePng(encoded, { level })
     }
     case 'jpeg':
       return await encodeJpeg(imageData, { quality: Math.round((quality ?? 0.85) * 100) })

@@ -12,8 +12,15 @@ interface ShifteoDB extends DBSchema {
     key: string
     value: {
       id: string
-      blob: Blob
+      blob: Blob | File
       createdAt: number
+      metadata?: {
+        filename?: string
+        type?: string
+        originalDimensions?: { width: number; height: number }
+        thumbnailBlob?: Blob
+        options?: any
+      }
     }
   }
 }
@@ -210,5 +217,85 @@ export async function getStorageStats(): Promise<{
       tempFilesCount: 0,
       tempFilesSize: 0,
     }
+  }
+}
+
+// === Queue Persistence ===
+
+/**
+ * Store queue job for persistence
+ */
+export async function storeQueueJob(job: {
+  id: string
+  file: File
+  originalDimensions?: { width: number; height: number }
+  thumbnailBlob?: Blob
+  options?: any
+}): Promise<void> {
+  try {
+    const db = await getDB()
+    await db.put('tempFiles', {
+      id: job.id,
+      blob: job.file,
+      createdAt: Date.now(),
+      metadata: {
+        filename: job.file.name,
+        type: job.file.type,
+        originalDimensions: job.originalDimensions,
+        thumbnailBlob: job.thumbnailBlob,
+        options: job.options
+      }
+    })
+  } catch (error) {
+    if ((error as any).name === 'QuotaExceededError') {
+      console.warn('Storage quota exceeded, skipping persistence')
+    } else {
+      console.error('Failed to store queue job:', error)
+    }
+  }
+}
+
+/**
+ * Restore all queue jobs from IndexedDB
+ */
+export async function restoreQueueJobs(): Promise<Array<{
+  id: string
+  file: File
+  originalDimensions?: { width: number; height: number }
+  thumbnailUrl?: string
+  options?: any
+}>> {
+  try {
+    const db = await getDB()
+    const records = await db.getAll('tempFiles')
+
+    return records.map(record => {
+      const thumbnailUrl = record.metadata?.thumbnailBlob
+        ? URL.createObjectURL(record.metadata.thumbnailBlob)
+        : undefined
+
+      return {
+        id: record.id,
+        file: record.blob as File,
+        originalDimensions: record.metadata?.originalDimensions,
+        thumbnailUrl,
+        options: record.metadata?.options
+      }
+    })
+  } catch (error) {
+    console.error('Failed to restore queue:', error)
+    return []
+  }
+}
+
+/**
+ * Remove specific job from storage
+ */
+export async function removeQueueJob(id: string): Promise<void> {
+  try {
+    const db = await getDB()
+    await db.delete('tempFiles', id)
+  } catch (error) {
+    console.error('Failed to remove queue job:', error)
   }
 }
