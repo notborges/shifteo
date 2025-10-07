@@ -22,6 +22,7 @@ interface ShifteoDB extends DBSchema {
         options?: any
       }
     }
+    indexes: { 'createdAt': number }
   }
 }
 

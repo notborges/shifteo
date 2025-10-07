@@ -332,9 +332,14 @@ const queueStore = useQueueStore()
 const settingsStore = useSettingsStore()
 const toastStore = useToastStore()
 
-type UiImageOptions = ImageConvertOpts & { quality: number; stripExif: boolean }
+type UiImageFormat = ImageFormat | 'original'
+type UiImageOptions = Omit<ImageConvertOpts, 'to'> & {
+  to: UiImageFormat
+  quality: number
+  stripExif: boolean
+}
 
-const formatOptions = [
+const formatOptions: Array<{ value: UiImageFormat; desc: string }> = [
   { value: 'original' as const, desc: 'KEEP ORIGINAL' },
   { value: 'png' as ImageFormat, desc: 'LOSSLESS' },
   { value: 'jpeg' as ImageFormat, desc: 'SMALLEST' },
@@ -356,7 +361,7 @@ const formatHints: Record<string, string> = {
   avif: 'Best compression - Slower encoding, newer format'
 }
 
-const options = ref<UiImageOptions & { to: ImageFormat | 'original' }>({
+const options = ref<UiImageOptions>({
   to: settingsStore.defaultImageFormat,
   quality: settingsStore.defaultImageQuality,
   width: undefined,
@@ -412,7 +417,7 @@ function handlePageDragOver(event: DragEvent) {
   }
 }
 
-function handlePageDragLeave(event: DragEvent) {
+function handlePageDragLeave(_event: DragEvent) {
   dragCounter.value--
 
   if (dragCounter.value <= 0) {
@@ -551,9 +556,9 @@ async function convertSVGToPNG(file: File, targetSize: number): Promise<Blob> {
   let width = parseFloat(svgElement.getAttribute('width') || '0')
   let height = parseFloat(svgElement.getAttribute('height') || '0')
 
-  if (!width && !height && viewBox) {
-    width = viewBox[2]
-    height = viewBox[3]
+  if (!width && !height && viewBox && viewBox.length >= 4) {
+    width = viewBox[2]!
+    height = viewBox[3]!
   }
 
   if (!width || !height) {
@@ -643,7 +648,7 @@ async function handleFilesSelected(files: File[]) {
       status: 'idle',
       originalDimensions: undefined,
       thumbnail: undefined,
-      options: toRaw(options.value)
+      options: toRaw(options.value) as any
     })
 
     addedCount++
@@ -675,7 +680,7 @@ async function handleFilesSelected(files: File[]) {
         file,
         originalDimensions: dimensions || undefined,
         thumbnailBlob,
-        options: toRaw(options.value)
+        options: toRaw(options.value) as any
       })
     }).catch(error => {
       console.error('Failed to generate metadata for file:', error)
@@ -777,7 +782,7 @@ async function startConversion() {
 
 async function handleDownload(job: Job) {
   if (!job.result) return
-  const blob = Array.isArray(job.result) ? job.result[0] : job.result
+  const blob = Array.isArray(job.result) ? job.result[0]! : job.result
   const filename = generateOutputFilename(job.file.name, options.value.to, settingsStore.outputNamingPattern)
   await downloadFile(blob, filename)
 

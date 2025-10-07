@@ -16,7 +16,7 @@ import { computed, useAttrs } from 'vue'
 
 defineOptions({ inheritAttrs: false })
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     variant?: 'corners' | 'full'
     active?: boolean

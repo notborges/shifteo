@@ -94,6 +94,8 @@ class ImageWorkerPool {
     }
 
     const worker = Array.from(this.availableWorkers)[0]
+    if (!worker) return
+
     const job = this.queue.shift()!
 
     this.availableWorkers.delete(worker)
@@ -111,6 +113,10 @@ class ImageWorkerPool {
     return new Promise((resolve, reject) => {
       if (this.availableWorkers.size > 0) {
         const worker = Array.from(this.availableWorkers)[0]
+        if (!worker) {
+          reject(new Error('No available worker'))
+          return
+        }
         this.availableWorkers.delete(worker)
         this.processWithWorker(worker, file, opts, onProgress, onStage)
           .then(resolve)
@@ -123,7 +129,10 @@ class ImageWorkerPool {
 
   async ping(): Promise<'pong'> {
     const worker = this.workers[0]
-    return new Promise((resolve, reject) => {
+    if (!worker) {
+      throw new Error('No workers available')
+    }
+    return new Promise((resolve, _reject) => {
       const id = this.messageId++
       const handler = (event: MessageEvent) => {
         if (event.data.id === id) {

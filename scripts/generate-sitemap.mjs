@@ -8,7 +8,7 @@ const publicDir = path.join(rootDir, 'public')
 const sitemapPath = path.join(publicDir, 'sitemap.xml')
 const seoDataPath = path.join(rootDir, 'src', 'app', 'seo-data.json')
 
-const rawBaseUrl = process.env.SITEMAP_SITE_URL || process.env.VITE_SITE_URL || 'https://shifteo.app'
+const rawBaseUrl = process.env.SITEMAP_SITE_URL || process.env.VITE_SITE_URL || 'https://shifteo.akius.tools'
 const BASE_URL = rawBaseUrl.replace(/\/$/, '')
 
 async function buildSitemap() {

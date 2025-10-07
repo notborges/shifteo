@@ -15,7 +15,7 @@
           <UiButton variant="solid" size="md" icon-only type="button" aria-label="Open help">
             <HelpCircle :size="20" />
           </UiButton>
-          <UiButton variant="solid" size="md" icon-only type="button" aria-label="Toggle theme">
+          <UiButton variant="solid" size="md" icon-only type="button" aria-label="Toggle theme" @click="settingsStore.toggleDarkMode()">
             <MoonStar :size="20" />
           </UiButton>
           <UiButton variant="solid" size="md" icon-only type="button" aria-label="User menu">

@@ -18,18 +18,19 @@ export const useToastStore = defineStore('toast', {
   actions: {
     add(toast: Omit<Toast, 'id'>) {
       const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const duration = toast.duration ?? 4000
       const newToast: Toast = {
         ...toast,
         id,
-        duration: toast.duration ?? 4000
+        duration
       }
 
       this.toasts.push(newToast)
 
-      if (newToast.duration > 0) {
+      if (duration > 0) {
         setTimeout(() => {
           this.remove(id)
-        }, newToast.duration)
+        }, duration)
       }
 
       return id

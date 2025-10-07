@@ -1,6 +1,6 @@
 // Format capabilities and detection utilities
 
-import type { ImageFormat, JobKind } from '@/workers/types'
+import type { JobKind } from '@/workers/types'
 
 export interface FormatCapability {
   input: readonly string[]

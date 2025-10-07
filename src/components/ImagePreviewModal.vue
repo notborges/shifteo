@@ -189,7 +189,9 @@ watch(() => props.job, (job) => {
 
   if (job.result) {
     const blob = Array.isArray(job.result) ? job.result[0] : job.result
-    processedImageUrl.value = URL.createObjectURL(blob)
+    if (blob) {
+      processedImageUrl.value = URL.createObjectURL(blob)
+    }
   }
 }, { immediate: true })
 
@@ -258,7 +260,9 @@ function startDrag(event: MouseEvent | TouchEvent) {
     if (!isDragging.value || !sliderContainer.value) return
 
     const rect = sliderContainer.value.getBoundingClientRect()
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const clientX = 'touches' in e ? e.touches[0]?.clientX : e.clientX
+    if (clientX === undefined) return
+
     const x = clientX - rect.left
     const percent = Math.max(0, Math.min(100, (x / rect.width) * 100))
 
