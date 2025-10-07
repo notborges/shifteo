@@ -538,11 +538,8 @@ function detectFormatFromFile(file: File): ImageFormat {
 }
 
 function getJobTargetFormat(job: Job): ImageFormat {
-  const opts = job.options as any
-  if (!opts?.to || opts.to === 'original') {
-    return detectFormatFromFile(job.file)
-  }
-  return opts.to
+  // Use the actual output format from conversion, or fall back to detecting from original file
+  return job.outputFormat || detectFormatFromFile(job.file)
 }
 
 async function convertSVGToPNG(file: File, targetSize: number): Promise<Blob> {
@@ -641,14 +638,13 @@ async function handleFilesSelected(files: File[]) {
 
     const isSVG = file.name.toLowerCase().endsWith('.svg')
 
-    // Add to queue immediately
+    // Add to queue immediately (without saving options - they come from UI)
     const jobId = queueStore.addJob({
       file,
       kind: 'image',
       status: 'idle',
       originalDimensions: undefined,
-      thumbnail: undefined,
-      options: toRaw(options.value) as any
+      thumbnail: undefined
     })
 
     addedCount++
@@ -675,12 +671,12 @@ async function handleFilesSelected(files: File[]) {
         }
       }
 
+      // Store file for persistence (without options - they come from current UI)
       await storeQueueJob({
         id: jobId,
         file,
         originalDimensions: dimensions || undefined,
-        thumbnailBlob,
-        options: toRaw(options.value) as any
+        thumbnailBlob
       })
     }).catch(error => {
       console.error('Failed to generate metadata for file:', error)
@@ -739,7 +735,8 @@ async function startConversion() {
         )
         queueStore.setJobResult(job.id, result.blob)
         queueStore.updateJob(job.id, {
-          outputDimensions: { width: result.width, height: result.height }
+          outputDimensions: { width: result.width, height: result.height },
+          outputFormat: targetFormat  // Save actual format used
         })
       } catch (error) {
         console.error('Conversion failed:', error)
@@ -783,7 +780,8 @@ async function startConversion() {
 async function handleDownload(job: Job) {
   if (!job.result) return
   const blob = Array.isArray(job.result) ? job.result[0]! : job.result
-  const filename = generateOutputFilename(job.file.name, options.value.to, settingsStore.outputNamingPattern)
+  const targetFormat = getJobTargetFormat(job)
+  const filename = generateOutputFilename(job.file.name, targetFormat, settingsStore.outputNamingPattern)
   await downloadFile(blob, filename)
 
   // Remove from storage after download

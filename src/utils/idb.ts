@@ -19,7 +19,6 @@ interface ShifteoDB extends DBSchema {
         type?: string
         originalDimensions?: { width: number; height: number }
         thumbnailBlob?: Blob
-        options?: any
       }
     }
     indexes: { 'createdAt': number }
@@ -224,14 +223,13 @@ export async function getStorageStats(): Promise<{
 // === Queue Persistence ===
 
 /**
- * Store queue job for persistence
+ * Store queue job for persistence (options not saved - they come from current UI)
  */
 export async function storeQueueJob(job: {
   id: string
   file: File
   originalDimensions?: { width: number; height: number }
   thumbnailBlob?: Blob
-  options?: any
 }): Promise<void> {
   try {
     const db = await getDB()
@@ -243,8 +241,7 @@ export async function storeQueueJob(job: {
         filename: job.file.name,
         type: job.file.type,
         originalDimensions: job.originalDimensions,
-        thumbnailBlob: job.thumbnailBlob,
-        options: job.options
+        thumbnailBlob: job.thumbnailBlob
       }
     })
   } catch (error) {
@@ -257,14 +254,13 @@ export async function storeQueueJob(job: {
 }
 
 /**
- * Restore all queue jobs from IndexedDB
+ * Restore all queue jobs from IndexedDB (options not restored - they come from current UI)
  */
 export async function restoreQueueJobs(): Promise<Array<{
   id: string
   file: File
   originalDimensions?: { width: number; height: number }
   thumbnailUrl?: string
-  options?: any
 }>> {
   try {
     const db = await getDB()
@@ -279,8 +275,7 @@ export async function restoreQueueJobs(): Promise<Array<{
         id: record.id,
         file: record.blob as File,
         originalDimensions: record.metadata?.originalDimensions,
-        thumbnailUrl,
-        options: record.metadata?.options
+        thumbnailUrl
       }
     })
   } catch (error) {

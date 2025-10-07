@@ -92,7 +92,8 @@ export interface Job {
   thumbnail?: string // Blob URL for image preview
   originalDimensions?: { width: number; height: number }
   outputDimensions?: { width: number; height: number }
-  options?: ImageConvertOpts | DocTask
+  outputFormat?: ImageFormat // Actual format used for conversion
+  options?: ImageConvertOpts | DocTask // Deprecated - kept for backwards compat, not used
   createdAt: number
   completedAt?: number
 }

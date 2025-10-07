@@ -1690,6 +1690,7 @@ body {
   cursor: ew-resize;
   transform: translateX(-1px);
   box-shadow: 0 0 12px rgba(67, 198, 224, 0.5);
+  z-index: 10;
 }
 
 .comparison-handle {
