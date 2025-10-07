@@ -19,6 +19,8 @@
       </nav>
     </div>
 
+    <div class="nav-separator"></div>
+
     <div class="nav-section">
       <p class="nav-section__label">System</p>
       <nav class="nav-links" aria-label="System navigation">
@@ -36,7 +38,7 @@
     <div class="nav-footer">
       <div class="nav-footer__status">
         <span class="nav-status-dot status-pulse" />
-        System Ready
+        LOCAL
       </div>
     </div>
   </aside>

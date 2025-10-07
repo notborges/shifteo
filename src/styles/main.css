@@ -342,6 +342,12 @@ body {
   color: var(--color-text-muted);
 }
 
+.nav-separator {
+  height: 1px;
+  background: var(--color-line-hair);
+  opacity: 0.5;
+}
+
 .nav-link {
   position: relative;
   display: flex;
