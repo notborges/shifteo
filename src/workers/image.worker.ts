@@ -1,4 +1,5 @@
 import type { ImageConvertOpts, ImageConvertResult } from './types'
+import { stripMetadata } from './metadata'
 
 console.log('[Worker] Starting imports...')
 
@@ -183,6 +184,7 @@ function getMimeType(format: 'png' | 'jpeg' | 'webp' | 'avif'): string {
   return mimeTypes[format]
 }
 
+
 /**
  * Detect format from buffer magic bytes
  */
@@ -281,7 +283,10 @@ async function convertImage(
     console.log('[Worker] Encoding...')
     onStage?.('Encoding...')
     onProgress?.(0.75)
-    const encodedBuffer = await encodeImage(processedImageData, opts.to, opts.quality)
+    let encodedBuffer = await encodeImage(processedImageData, opts.to, opts.quality)
+    if (opts.stripExif) {
+      encodedBuffer = stripMetadata(encodedBuffer, opts.to)
+    }
     onProgress?.(0.95)
 
     // Create blob
