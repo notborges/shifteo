@@ -1,0 +1,101 @@
+[
+  {
+    "name": "home",
+    "path": "/",
+    "title": "Shifteo — Shift images and documents locally",
+    "description": "Shift images and documents in your browser without uploads or tracking. Convert PNG, JPEG, WebP, and AVIF with fine control while everything stays on-device.",
+    "priority": 1,
+    "changefreq": "weekly",
+    "structuredData": [
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Shifteo",
+        "url": "{{siteUrl}}",
+        "description": "Shift images and documents locally in your browser with zero uploads or tracking."
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Do my files leave my device when I shift with Shifteo?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. All processing happens locally in your browser and files never leave your device."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which image formats can I shift?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Shifteo shifts PNG, JPEG, WebP, and AVIF images with quality and resize controls."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "images",
+    "path": "/images",
+    "title": "Shift images locally — PNG, JPEG, WebP, AVIF | Shifteo",
+    "description": "Shift between PNG, JPEG, WebP, and AVIF with quality tuning, resizing, EXIF stripping, and batch processing directly in your browser.",
+    "priority": 0.9,
+    "changefreq": "weekly",
+    "structuredData": [
+      {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "Shift an image with Shifteo",
+        "description": "Shift image formats locally with quality and resize controls without uploading files.",
+        "step": [
+          {
+            "@type": "HowToStep",
+            "name": "Add your image",
+            "text": "Drop or browse to add PNG, JPEG, WebP, or AVIF files to the queue."
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Set shift options",
+            "text": "Adjust format, quality, resize mode, and metadata preferences."
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Run the shift",
+            "text": "Start the shift and monitor the queue to download results instantly."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "documents",
+    "path": "/documents",
+    "title": "Document shifting roadmap | Shifteo",
+    "description": "DOCX to HTML, PDF merge and split, and page extraction features are in development.",
+    "priority": 0.4,
+    "changefreq": "monthly",
+    "noindex": true
+  },
+  {
+    "name": "settings",
+    "path": "/settings",
+    "title": "Shifteo settings and privacy controls",
+    "description": "Adjust default image quality, privacy options, and local storage cleanup for Shifteo.",
+    "priority": 0.3,
+    "changefreq": "monthly",
+    "noindex": true
+  },
+  {
+    "name": "licenses",
+    "path": "/licenses",
+    "title": "Open-source licenses used in Shifteo",
+    "description": "Licenses and attributions for the open-source libraries powering Shifteo.",
+    "priority": 0.2,
+    "changefreq": "yearly",
+    "noindex": true
+  }
+]

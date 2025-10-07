@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "prebuild": "node scripts/copy-licenses.mjs",
+    "prebuild": "node scripts/copy-licenses.mjs && node scripts/generate-sitemap.mjs",
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "lint": "eslint .",
-    "licenses": "node scripts/copy-licenses.mjs"
+    "licenses": "node scripts/copy-licenses.mjs",
+    "sitemap": "node scripts/generate-sitemap.mjs",
+    "audit:seo": "npx lighthouse http://localhost:4173 --only-categories=performance,seo --quiet --chrome-flags=\"--headless\""
   },
   "dependencies": {
     "@jsquash/avif": "latest",

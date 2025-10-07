@@ -1,0 +1,6 @@
+Package: jszip
+Version: 3.10.1
+Declared license: (MIT OR GPL-3.0-or-later)
+
+----- LICENSE TEXT -----
+(No license file found in package directory.)

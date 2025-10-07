@@ -1,35 +1,36 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { applyRouteSeo } from '@/app/seo'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'home',
     component: () => import('@/pages/Home.vue'),
-    meta: { title: 'Home', subtitle: 'Overview' }
+    meta: { title: 'Home', subtitle: 'Overview', seoKey: 'home' }
   },
   {
     path: '/images',
     name: 'images',
     component: () => import('@/pages/Images.vue'),
-    meta: { title: 'Images', subtitle: 'Shift' }
+    meta: { title: 'Images', subtitle: 'Shift', seoKey: 'images' }
   },
   {
     path: '/documents',
     name: 'documents',
     component: () => import('@/pages/Documents.vue'),
-    meta: { title: 'Documents', subtitle: 'Coming Soon' }
+    meta: { title: 'Documents', subtitle: 'Coming Soon', seoKey: 'documents' }
   },
   {
     path: '/settings',
     name: 'settings',
     component: () => import('@/pages/Settings.vue'),
-    meta: { title: 'Settings', subtitle: 'Preferences' }
+    meta: { title: 'Settings', subtitle: 'Preferences', seoKey: 'settings' }
   },
   {
     path: '/licenses',
     name: 'licenses',
     component: () => import('@/pages/Licenses.vue'),
-    meta: { title: 'Licenses', subtitle: 'Open Source' }
+    meta: { title: 'Licenses', subtitle: 'Open Source', seoKey: 'licenses' }
   }
 ]
 
@@ -38,10 +39,10 @@ const router = createRouter({
   routes
 })
 
-// Update document title on route change
 router.afterEach((to) => {
-  const title = to.meta.title as string || 'Shifteo'
-  document.title = `${title} — Shifteo`
+  applyRouteSeo(to)
 })
+
+applyRouteSeo(router.currentRoute.value)
 
 export default router
