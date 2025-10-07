@@ -21,6 +21,8 @@ const props = withDefaults(
   defineProps<{
     inset?: boolean
     alert?: 'success' | 'warning' | 'error' | null
+    brackets?: boolean
+    hoverable?: boolean
     headerClass?: string | Record<string, boolean> | string[]
     bodyClass?: string | Record<string, boolean> | string[]
     footerClass?: string | Record<string, boolean> | string[]
@@ -28,6 +30,8 @@ const props = withDefaults(
   {
     inset: false,
     alert: null,
+    brackets: false,
+    hoverable: false,
     headerClass: '',
     bodyClass: '',
     footerClass: ''
@@ -44,70 +48,9 @@ const sectionClasses = computed(() => {
   const classes: (string | Record<string, boolean>)[] = ['panel']
   if (props.inset) classes.push('panel--inset')
   if (props.alert) classes.push(`panel--alert-${props.alert}`)
+  if (props.brackets) classes.push('bracket-corners-content')
+  if (props.hoverable) classes.push('panel--hoverable')
   if (attrs.class) classes.push(attrs.class as any)
   return classes
 })
 </script>
-
-<style scoped>
-.panel {
-  background: rgba(17, 18, 21, 0.8);
-  border: 1px solid var(--color-line-key);
-  border-radius: var(--radius-panel);
-  padding: var(--space-16);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-16);
-}
-
-.panel--inset {
-  background: var(--color-bg-inset);
-}
-
-.panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-16);
-  text-transform: uppercase;
-  letter-spacing: 0.24em;
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  border-bottom: 1px solid var(--color-line-hair);
-  padding-bottom: var(--space-12);
-}
-
-.panel__meta {
-  font-family: var(--font-ui-mono);
-  font-size: var(--type-meta-size);
-  letter-spacing: 0.18em;
-  color: var(--color-text-muted);
-}
-
-.panel__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-16);
-}
-
-.panel__footer {
-  font-family: var(--font-ui-mono);
-  font-size: var(--type-meta-size);
-  letter-spacing: 0.18em;
-  color: var(--color-text-muted);
-  border-top: 1px solid var(--color-line-hair);
-  padding-top: var(--space-12);
-}
-
-.panel--alert-success {
-  border-left: 3px solid var(--color-acc-success);
-}
-
-.panel--alert-warning {
-  border-left: 3px solid var(--color-acc-warning);
-}
-
-.panel--alert-error {
-  border-left: 3px solid var(--color-acc-error);
-}
-</style>

@@ -12,9 +12,9 @@
             :key="item.name"
             class="grid items-start gap-6 md:grid-cols-[200px_1fr_120px]"
           >
-            <span class="mono" style="color: var(--color-text-secondary); letter-spacing: 0.18em;">{{ item.name }}</span>
-            <span style="color: var(--color-text-muted);">{{ item.description }}</span>
-            <span style="color: var(--color-text-muted); text-align: right;">{{ item.license }}</span>
+            <span class="mono text-text-secondary tracking-wide">{{ item.name }}</span>
+            <span class="text-text-muted">{{ item.description }}</span>
+            <span class="text-text-muted text-right">{{ item.license }}</span>
           </div>
         </div>
       </div>
@@ -30,9 +30,9 @@
             :key="item.name"
             class="grid items-start gap-6 md:grid-cols-[200px_1fr_120px]"
           >
-            <span class="mono" style="color: var(--color-text-secondary); letter-spacing: 0.18em;">{{ item.name }}</span>
-            <span style="color: var(--color-text-muted);">{{ item.description }}</span>
-            <span style="color: var(--color-text-muted); text-align: right;">{{ item.license }}</span>
+            <span class="mono text-text-secondary tracking-wide">{{ item.name }}</span>
+            <span class="text-text-muted">{{ item.description }}</span>
+            <span class="text-text-muted text-right">{{ item.license }}</span>
           </div>
         </div>
       </div>
@@ -48,9 +48,9 @@
             :key="item.name"
             class="grid items-start gap-6 md:grid-cols-[200px_1fr_120px]"
           >
-            <span class="mono" style="color: var(--color-text-secondary); letter-spacing: 0.18em;">{{ item.name }}</span>
-            <span style="color: var(--color-text-muted);">{{ item.description }}</span>
-            <span style="color: var(--color-text-muted); text-align: right;">{{ item.license }}</span>
+            <span class="mono text-text-secondary tracking-wide">{{ item.name }}</span>
+            <span class="text-text-muted">{{ item.description }}</span>
+            <span class="text-text-muted text-right">{{ item.license }}</span>
           </div>
         </div>
       </div>
@@ -58,7 +58,7 @@
       <div class="panel col-span-12">
         <div class="panel__header">
           <span>Privacy Statement</span>
-          <span class="panel__meta">Operational pledge</span>
+          <span class="panel__meta">Our commitment</span>
         </div>
         <div class="panel__body body-text text-text-secondary">
           All file processing happens 100% locally in your browser. Your files never leave your device. We do not collect, store, or transmit any data. Zero analytics. Zero tracking. Zero servers.

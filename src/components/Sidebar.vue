@@ -34,10 +34,9 @@
     </div>
 
     <div class="nav-footer">
-      <span>100% Local</span>
       <div class="nav-footer__status">
         <span class="nav-status-dot status-pulse" />
-        Processing
+        System Ready
       </div>
     </div>
   </aside>

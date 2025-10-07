@@ -1,94 +1,92 @@
 <template>
-  <div class="page-shell">
+  <div class="page-shell page-shell--constrained">
     <div class="page-grid">
-      <div class="panel panel--inset col-span-12">
-        <div class="panel__header">
-          <span>Mission Brief</span>
+      <UiPanel :inset="true" class="col-span-12">
+        <template #header>
+          <span>About</span>
           <span class="panel__meta">Zero uploads. Zero tracking.</span>
-        </div>
-        <div class="panel__body gap-6">
+        </template>
+        <div class="gap-6">
           <div>
             <h1 class="display-text">SHIFT:EO</h1>
-            <p class="body-text text-text-secondary" style="letter-spacing: 0.18em; text-transform: uppercase;">
-              Shift images and documents locally using secure wasm pipelines.
+            <p class="body-text text-text-secondary uppercase tracking-wide">
+              Shift images and documents locally in your browser.
             </p>
           </div>
           <div class="flex flex-wrap gap-3">
             <UiButton to="/images" variant="solid" tone="accent">
-              Launch Image Shift
+              Open Images
             </UiButton>
             <UiButton to="/documents" variant="quiet">
-              Document Ops
+              Documents
             </UiButton>
           </div>
         </div>
-        <div class="panel__footer">
-          Console ready · assets stay on device
-        </div>
-      </div>
+        <template #footer>
+          Ready · All files stay local
+        </template>
+      </UiPanel>
 
-      <RouterLink to="/images" class="panel col-span-12 lg:col-span-6">
-        <div class="panel__header">
-          <span>Image Ops</span>
-          <span class="panel__meta">PNG · JPEG · WEBP · AVIF</span>
-        </div>
-        <div class="panel__body">
+      <RouterLink to="/images" class="col-span-12 lg:col-span-6">
+        <UiPanel :hoverable="true">
+          <template #header>
+            <span>Images</span>
+            <span class="panel__meta">PNG · JPEG · WEBP · AVIF</span>
+          </template>
           <p class="body-text text-text-secondary">
-            Convert, compress, and resize without leaving the browser. Batch queues keep throughput high while metadata stripping stays optional.
+            Shift image formats, compress, and resize without uploading. Process files in batches with optional metadata removal.
           </p>
-          <ul class="body-text text-text-muted" style="letter-spacing: 0.14em; text-transform: uppercase;">
-            <li>Format shifts with quality control</li>
+          <ul class="body-text text-text-muted uppercase tracking-wide">
+            <li>Change format with quality control</li>
             <li>Resize by width, height, or long edge</li>
-            <li>Queue monitoring with mono telemetry</li>
+            <li>Real-time queue status</li>
           </ul>
-        </div>
-        <div class="panel__footer">
-          Engage Shift &rsaquo;
-        </div>
+          <template #footer>
+            Get Started &rsaquo;
+          </template>
+        </UiPanel>
       </RouterLink>
 
-      <div class="panel col-span-12 lg:col-span-6">
-        <div class="panel__header">
-          <span>Document Ops</span>
-          <span class="panel__meta">Coming online</span>
-        </div>
-        <div class="panel__body">
-          <p class="body-text text-text-secondary">
-            DOCX to HTML, PDF welding, and extraction engines are staged. Watch this channel for deployment updates.
-          </p>
-          <div class="badge badge--live">Secure Channel</div>
-        </div>
-        <div class="panel__footer">
-          Status: Calibration in progress
-        </div>
-      </div>
+      <UiPanel class="col-span-12 lg:col-span-6">
+        <template #header>
+          <span>Documents</span>
+          <span class="panel__meta">Coming soon</span>
+        </template>
+        <p class="body-text text-text-secondary">
+          DOCX to HTML, PDF merge/split, and page extraction features are in development.
+        </p>
+        <div class="badge">Coming Soon</div>
+        <template #footer>
+          In development
+        </template>
+      </UiPanel>
 
-      <div class="panel col-span-12">
-        <div class="panel__header">
-          <span>Operational Integrity</span>
-          <span class="panel__meta">All processes run client-side</span>
+      <UiPanel class="col-span-12">
+        <template #header>
+          <span>Why Shifteo</span>
+          <span class="panel__meta">All processing is local</span>
+        </template>
+        <div class="grid md:grid-cols-3 gap-6">
+          <div>
+            <span class="badge">Local Processing</span>
+            <p class="body-text text-text-muted mt-3">
+              All processing happens in your browser. Files never leave your device.
+            </p>
+          </div>
+          <div>
+            <span class="badge">Batch Support</span>
+            <p class="body-text text-text-muted mt-3">
+              Process multiple files at once with automatic queue management.
+            </p>
+          </div>
+          <div>
+            <span class="badge">Live Status</span>
+            <p class="body-text text-text-muted mt-3">
+              See processing status in real-time.
+            </p>
+          </div>
         </div>
-        <div class="panel__body grid md:grid-cols-3 gap-6">
-          <div>
-            <span class="badge">Local Compute</span>
-            <p class="body-text text-text-muted mt-3">
-              Workers run entirely in your browser. No payloads transmitted.
-            </p>
-          </div>
-          <div>
-            <span class="badge">Batch Ready</span>
-            <p class="body-text text-text-muted mt-3">
-              Queue orchestration keeps multi-file shifts organized and recoverable.
-            </p>
-          </div>
-          <div>
-            <span class="badge">Telemetry Lite</span>
-            <p class="body-text text-text-muted mt-3">
-              Mono readouts surface status changes instantly—no dashboards required.
-            </p>
-          </div>
-        </div>
-      </div>
+      </UiPanel>
     </div>
   </div>
 </template>
@@ -96,4 +94,5 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiPanel from '@/components/ui/UiPanel.vue'
 </script>

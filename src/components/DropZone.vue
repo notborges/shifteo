@@ -1,6 +1,6 @@
 <template>
   <div
-    class="drop-zone"
+    class="drop-zone grid-bg bracket-corners"
     :class="[
       isDragging ? 'drop-zone--active' : '',
       disabled ? 'drop-zone--disabled' : 'cursor-pointer'

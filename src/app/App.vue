@@ -13,13 +13,13 @@
         </div>
         <div class="topbar__actions">
           <UiButton variant="solid" size="md" icon-only type="button" aria-label="Open help">
-            <HelpCircle :size="24" />
+            <HelpCircle :size="20" />
           </UiButton>
           <UiButton variant="solid" size="md" icon-only type="button" aria-label="Toggle theme">
-            <MoonStar :size="24" />
+            <MoonStar :size="20" />
           </UiButton>
           <UiButton variant="solid" size="md" icon-only type="button" aria-label="User menu">
-            <UserRound :size="24" />
+            <UserRound :size="20" />
           </UiButton>
         </div>
       </header>
@@ -27,10 +27,11 @@
       <div class="chrome__scroll">
         <div class="chrome__content">
           <RouterView />
-          <BottomBar />
         </div>
       </div>
+      <BottomBar />
     </div>
+    <MobileNav />
   </div>
 </template>
 
@@ -39,6 +40,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import Sidebar from '@/components/Sidebar.vue'
 import BottomBar from '@/components/BottomBar.vue'
+import MobileNav from '@/components/MobileNav.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useSettingsStore } from '@/app/stores/settings'
 import { HelpCircle, MoonStar, UserRound } from 'lucide-vue-next'

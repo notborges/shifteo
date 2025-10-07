@@ -1,31 +1,30 @@
 <template>
   <div class="page-shell">
     <div class="page-grid">
-      <div class="panel panel--inset col-span-12">
-        <div class="panel__header">
-          <span>Input Channel</span>
+      <UiPanel :inset="true" class="col-span-12">
+        <template #header>
+          <span>Add Images</span>
           <span class="panel__meta">Accepts PNG · JPEG · WEBP · AVIF</span>
-        </div>
-        <div class="panel__body">
-          <DropZone
-            accept="image/png,image/jpeg,image/jpg,image/webp,image/avif"
-            @files-selected="handleFilesSelected"
-            :disabled="queueStore.hasActiveJobs"
-          />
-        </div>
-      </div>
+        </template>
+        <DropZone
+          accept="image/png,image/jpeg,image/jpg,image/webp,image/avif"
+          @files-selected="handleFilesSelected"
+          :disabled="queueStore.hasActiveJobs"
+        />
+      </UiPanel>
 
-      <div class="panel col-span-12 xl:col-span-8">
+      <div class="panel col-span-12">
         <div class="panel__header">
-          <span>Shift Queue</span>
+          <span>Queue</span>
           <div class="panel__meta">
             {{ queueStore.totalJobs }} Files · {{ queueStore.pendingJobs.length }} Pending
           </div>
         </div>
         <div class="panel__body">
           <div v-if="queueStore.totalJobs === 0" class="empty-state">
-            <div class="empty-state__title">Queue Idle</div>
-            <div class="empty-state__meta">Drop assets to arm the conversion pipeline.</div>
+            <ListX :size="48" :stroke-width="1" class="text-text-muted" />
+            <div class="empty-state__title">Queue Empty</div>
+            <div class="empty-state__meta">Add files to start processing.</div>
           </div>
           <div v-else>
             <FileListItem
@@ -40,40 +39,13 @@
         </div>
         <div class="panel__footer" v-if="queueStore.totalJobs > 0">
           <div class="flex w-full items-center justify-between">
-            <span>Throughput stable</span>
+            <span>{{ queueStore.totalJobs }} file{{ queueStore.totalJobs > 1 ? 's' : '' }}</span>
             <UiButton variant="quiet" size="sm" type="button" @click="queueStore.clearAll()">Clear Queue</UiButton>
           </div>
         </div>
       </div>
 
-      <div class="panel col-span-12 xl:col-span-4">
-        <div class="panel__header">
-          <span>Signal</span>
-          <span class="panel__meta">Runtime telemetry</span>
-        </div>
-        <div class="panel__body gap-4">
-          <div>
-            <span class="badge badge--live">Local</span>
-            <p class="body-text text-text-muted mt-3">
-              Processing happens client-side using WebAssembly codecs stocked in the worker pool.
-            </p>
-          </div>
-          <div>
-            <span class="badge">Active Format</span>
-            <p class="body-text text-text-secondary mt-2 mono" style="letter-spacing: 0.18em;">
-              {{ options.to.toUpperCase() }}
-            </p>
-          </div>
-          <div>
-            <span class="badge">Quality</span>
-            <p class="body-text text-text-secondary mt-2 mono" style="letter-spacing: 0.18em;">
-              {{ Math.round(options.quality * 100) }}%
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel col-span-12 xl:col-span-5">
+      <div class="panel col-span-12 xl:col-span-6">
         <div class="panel__header">
           <span>Output Format</span>
           <span class="panel__meta">Select one target</span>
@@ -87,26 +59,25 @@
             variant="solid"
             :tone="options.to === format.value ? 'accent' : 'default'"
           >
-            <span class="mono" style="letter-spacing: 0.24em;">{{ format.value.toUpperCase() }}</span>
+            <span class="mono tracking-wider">{{ format.value.toUpperCase() }}</span>
             <span
-              :class="['block text-[11px]', options.to === format.value ? 'text-[#070909]' : 'text-text-muted']"
-              style="letter-spacing: 0.2em;"
+              :class="['block text-[11px] tracking-wide', options.to === format.value ? 'text-[#070909]' : 'text-text-muted']"
             >{{ format.desc }}</span>
           </UiButton>
         </div>
       </div>
 
-      <div class="panel col-span-12 xl:col-span-7">
+      <div class="panel col-span-12 xl:col-span-6">
         <div class="panel__header">
           <span>Quality Controls</span>
           <span class="panel__meta" v-if="options.to !== 'png'">Adjust compression and metadata</span>
-          <span class="panel__meta" v-else>Lossless channel active</span>
+          <span class="panel__meta" v-else>Lossless mode</span>
         </div>
         <div class="panel__body gap-6">
           <div v-if="options.to !== 'png'">
             <div class="flex items-center justify-between">
-              <span class="body-text text-text-secondary" style="letter-spacing: 0.24em; text-transform: uppercase;">Quality</span>
-              <span class="mono" style="letter-spacing: 0.2em;">{{ Math.round(options.quality * 100) }}%</span>
+              <span class="body-text text-text-secondary uppercase tracking-wider">Quality</span>
+              <span class="mono tracking-wide">{{ Math.round(options.quality * 100) }}%</span>
             </div>
             <input
               type="range"
@@ -123,7 +94,7 @@
             />
           </div>
 
-          <label class="flex items-center gap-3 body-text text-text-secondary" style="letter-spacing: 0.24em; text-transform: uppercase;">
+          <label class="flex items-center gap-3 body-text text-text-secondary uppercase tracking-wider">
             <span class="checkbox">
               <input type="checkbox" v-model="options.stripExif" />
               <span class="checkbox__mark" />
@@ -140,7 +111,7 @@
       <div class="panel col-span-12">
         <div class="panel__body flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div class="body-text text-text-muted">
-            Conversion executes locally using thread-safe workers. Execution time scales with input size and requested format.
+            All processing happens locally in your browser. Processing time depends on file size and format.
           </div>
           <div class="flex flex-col gap-3 md:flex-row md:items-center">
             <UiButton
@@ -174,11 +145,13 @@ import { ref, toRaw } from 'vue'
 import DropZone from '@/components/DropZone.vue'
 import FileListItem from '@/components/FileListItem.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiPanel from '@/components/ui/UiPanel.vue'
 import { useQueueStore } from '@/app/stores/queue'
 import { useSettingsStore } from '@/app/stores/settings'
 import { imageWorker } from '@/workers/imageWorkerManager'
 import { isFormatSupported, generateOutputFilename } from '@/utils/format'
 import { downloadFile } from '@/utils/file'
+import { Upload, ListX } from 'lucide-vue-next'
 import type { ImageConvertOpts, ImageFormat } from '@/workers/types'
 
 const queueStore = useQueueStore()

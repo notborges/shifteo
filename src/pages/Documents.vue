@@ -9,27 +9,27 @@
         <div class="panel__body">
           <div class="empty-state">
             <FileText :size="56" class="mx-auto text-text-muted" :stroke-width="1" />
-            <div class="empty-state__title">Channel warming</div>
+            <div class="empty-state__title">Coming Soon</div>
             <div class="empty-state__meta">
-              Document conversions deploy next. Merge, split, and render stacks will appear in this panel.
+              Document processing features are in development.
             </div>
           </div>
         </div>
         <div class="panel__footer">
-          Status: Modules staging · ETA to follow
+          In development
         </div>
       </div>
 
       <div class="panel col-span-12 lg:col-span-4">
         <div class="panel__header">
-          <span>Planned Operations</span>
-          <span class="panel__meta">Spec preview</span>
+          <span>Planned Features</span>
+          <span class="panel__meta">Roadmap</span>
         </div>
-        <div class="panel__body body-text text-text-secondary" style="letter-spacing: 0.16em; text-transform: uppercase;">
+        <div class="panel__body body-text text-text-secondary uppercase tracking-wide">
           <ul class="space-y-3">
-            <li>DOCX → HTML fidelity pipeline</li>
-            <li>PDF merge & split with mono logs</li>
-            <li>Per-page PDF to image exports</li>
+            <li>DOCX to HTML conversion</li>
+            <li>PDF merge & split</li>
+            <li>PDF to images (per page)</li>
           </ul>
         </div>
       </div>

@@ -120,11 +120,20 @@ const sizeChangeClass = computed(() => {
 const statusDotStyle = computed(() => {
   switch (props.job.status) {
     case 'running':
-      return { background: 'var(--color-acc-error)' }
+      return {
+        background: 'var(--color-acc-error)',
+        boxShadow: 'var(--shadow-glow-error-sm)'
+      }
     case 'completed':
-      return { background: 'var(--color-acc-success)' }
+      return {
+        background: 'var(--color-acc-success)',
+        boxShadow: 'var(--shadow-glow-success-sm)'
+      }
     case 'error':
-      return { background: 'var(--color-acc-error)' }
+      return {
+        background: 'var(--color-acc-error)',
+        boxShadow: 'var(--shadow-glow-error-sm)'
+      }
     default:
       return { background: 'var(--color-text-muted)' }
   }

@@ -31,6 +31,7 @@ const props = withDefaults(
     tone?: ButtonTone
     size?: ButtonSize
     iconOnly?: boolean
+    brackets?: boolean
     to?: string
     href?: string
     type?: 'button' | 'submit' | 'reset'
@@ -41,6 +42,7 @@ const props = withDefaults(
     tone: 'default',
     size: 'md',
     iconOnly: false,
+    brackets: false,
     type: 'button',
     disabled: false
   }
@@ -71,10 +73,11 @@ const componentTag = computed(() => {
 const baseClasses = [
   'inline-flex items-center justify-center whitespace-nowrap',
   'rounded-[var(--radius-button)] border border-solid',
-  'transition-colors duration-[var(--motion-fast)] ease-out',
+  'transition-all duration-[var(--motion-normal)] ease-out',
   'focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-[0_0_0_1px_rgba(11,12,14,0.9),0_0_0_3px_rgba(67,198,224,0.35)]',
   'disabled:cursor-not-allowed disabled:opacity-50',
-  'cursor-pointer'
+  'cursor-pointer',
+  'active:scale-[0.98]'
 ]
 
 const solidToneClasses: Record<ButtonTone, string[]> = {
@@ -96,7 +99,7 @@ const solidToneClasses: Record<ButtonTone, string[]> = {
   ],
   accent: [
     'border-[var(--color-acc-error)] bg-[var(--color-acc-error)] text-[#070909]',
-    'hover:brightness-[1.1]'
+    'hover:brightness-[1.1] hover:shadow-[var(--shadow-glow-error-md)]'
   ]
 }
 
@@ -123,15 +126,9 @@ const sizeClassMap: Record<ButtonSize, string[]> = {
 }
 
 const iconFrameMap: Record<ButtonSize, string[]> = {
-  sm: ['w-[2.1rem] h-[2.1rem]'],
-  md: ['w-[2.4rem] h-[2.4rem]'],
-  lg: ['w-[2.8rem] h-[2.8rem]']
-}
-
-const iconSvgSizeMap: Record<ButtonSize, string> = {
-  sm: '[&>svg]:w-[18px] [&>svg]:h-[18px]',
-  md: '[&>svg]:w-[24px] [&>svg]:h-[24px]',
-  lg: '[&>svg]:w-[28px] [&>svg]:h-[28px]'
+  sm: ['w-8 h-8'],
+  md: ['w-9 h-9'],
+  lg: ['w-11 h-11']
 }
 
 function getVariantClasses(): string[] {
@@ -154,12 +151,17 @@ const rootClasses = computed(() => {
   const classes = [...baseClasses, ...getVariantClasses(), ...sizeClassMap[props.size]]
 
   if (props.iconOnly) {
-    classes.push('px-2! gap-0', ...iconFrameMap[props.size], iconSvgSizeMap[props.size], 'leading-none', 'text-[var(--color-text-primary)]')
+    classes.push('px-0! gap-0', ...iconFrameMap[props.size], 'leading-none', 'text-[var(--color-text-primary)]')
     if (props.variant !== 'quiet') {
       classes.push('bg-[var(--color-bg-panel)] border-[var(--color-line-key)] hover:border-[var(--color-text-muted)]')
     }
   } else {
     classes.push('uppercase tracking-[0.22em] text-[12px]')
+  }
+
+  // Add corner brackets when explicitly requested
+  if (props.brackets) {
+    classes.push('bracket-corners')
   }
 
   classes.push(`data-variant-${props.variant}`, `data-tone-${props.tone}`)

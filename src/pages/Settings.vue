@@ -1,12 +1,15 @@
 <template>
-  <div class="page-shell">
+  <div class="page-shell page-shell--constrained">
     <div class="page-grid">
-      <div class="panel col-span-12 lg:col-span-6">
-        <div class="panel__header">
-          <span>Default Image Format</span>
+      <UiPanel class="col-span-12 lg:col-span-6">
+        <template #header>
+          <div class="flex items-center gap-2">
+            <Image :size="16" />
+            <span>Default Image Format</span>
+          </div>
           <span class="panel__meta">Applies to new jobs</span>
-        </div>
-        <div class="panel__body grid grid-cols-2 gap-3">
+        </template>
+        <div class="grid grid-cols-2 gap-3">
           <UiButton
             v-for="format in formats"
             :key="format"
@@ -15,17 +18,20 @@
             variant="solid"
             :tone="settings.defaultImageFormat === format ? 'accent' : 'default'"
           >
-            <span class="mono" style="letter-spacing: 0.24em;">{{ format.toUpperCase() }}</span>
+            <span class="mono tracking-wider">{{ format.toUpperCase() }}</span>
           </UiButton>
         </div>
-      </div>
+      </UiPanel>
 
-      <div class="panel col-span-12 lg:col-span-6">
-        <div class="panel__header">
-          <span>Default Quality</span>
+      <UiPanel class="col-span-12 lg:col-span-6">
+        <template #header>
+          <div class="flex items-center gap-2">
+            <Sliders :size="16" />
+            <span>Default Quality</span>
+          </div>
           <span class="panel__meta mono">{{ Math.round(settings.defaultImageQuality * 100) }}%</span>
-        </div>
-        <div class="panel__body gap-4">
+        </template>
+        <div class="gap-4">
           <input
             type="range"
             :value="settings.defaultImageQuality"
@@ -40,20 +46,23 @@
                    [&::-webkit-slider-thumb]:hover:shadow-glow
                    [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-acc-error)]"
           />
-          <div class="flex justify-between text-text-muted" style="letter-spacing: 0.2em; text-transform: uppercase;">
+          <div class="flex justify-between text-text-muted uppercase tracking-wide">
             <span>Min</span>
             <span>Max</span>
           </div>
         </div>
-      </div>
+      </UiPanel>
 
-      <div class="panel col-span-12 lg:col-span-6">
-        <div class="panel__header">
-          <span>Privacy Defaults</span>
+      <UiPanel class="col-span-12 lg:col-span-6">
+        <template #header>
+          <div class="flex items-center gap-2">
+            <Shield :size="16" />
+            <span>Privacy Defaults</span>
+          </div>
           <span class="panel__meta">Metadata handling</span>
-        </div>
-        <div class="panel__body gap-4">
-          <label class="flex items-center gap-3 body-text text-text-secondary" style="letter-spacing: 0.24em; text-transform: uppercase;">
+        </template>
+        <div class="gap-4">
+          <label class="flex items-center gap-3 body-text text-text-secondary uppercase tracking-wider">
             <span class="checkbox">
               <input
                 type="checkbox"
@@ -62,26 +71,29 @@
               />
               <span class="checkbox__mark" />
             </span>
-            Strip EXIF on ingest
+            Strip EXIF by default
           </label>
           <p class="body-text text-text-muted">
-            Enable to remove camera and author metadata from converted assets by default. You can override per job in the shift panel.
+            Remove camera and location data from images by default. You can change this per file in Images.
           </p>
         </div>
-      </div>
+      </UiPanel>
 
-      <div class="panel col-span-12 lg:col-span-6">
-        <div class="panel__header">
-          <span>Local Storage</span>
+      <UiPanel class="col-span-12 lg:col-span-6">
+        <template #header>
+          <div class="flex items-center gap-2">
+            <Database :size="16" />
+            <span>Local Storage</span>
+          </div>
           <span class="panel__meta mono">{{ storageStats.tempFilesCount }} files · {{ formatFileSize(storageStats.tempFilesSize) }}</span>
-        </div>
-        <div class="panel__body gap-4">
+        </template>
+        <div class="gap-4">
           <p class="body-text text-text-muted">
-            Temporary assets live in IndexedDB for quick retrieval. Clear storage to reclaim space after exports.
+            Processed files are temporarily stored in your browser. Clear to free up space.
           </p>
           <UiButton type="button" variant="destructive" @click="clearStorage">Clear Temp Storage</UiButton>
         </div>
-      </div>
+      </UiPanel>
     </div>
   </div>
 </template>
@@ -91,7 +103,9 @@ import { ref, onMounted } from 'vue'
 import { useSettingsStore } from '@/app/stores/settings'
 import { getStorageStats, clearAllTempFiles } from '@/utils/idb'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiPanel from '@/components/ui/UiPanel.vue'
 import { formatFileSize } from '@/utils/format'
+import { Image, Sliders, Shield, Database } from 'lucide-vue-next'
 import type { ImageFormat } from '@/workers/types'
 
 const settingsStore = useSettingsStore()
