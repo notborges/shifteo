@@ -33,7 +33,7 @@ export async function decode(buffer: ArrayBuffer, pageIndex = 0): Promise<JSquas
   }
 
   return {
-    data: rgba,
+    data: new Uint8ClampedArray(rgba),
     width,
     height
   }

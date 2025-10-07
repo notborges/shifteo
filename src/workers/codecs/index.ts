@@ -1,4 +1,9 @@
 import type { ImageConvertOpts } from '@/workers/types'
+import type { WorkerResizeOptions } from '@jsquash/resize/meta'
+import type { OptimiseOptions } from '@jsquash/oxipng/meta'
+import type { EncodeOptions as JpegEncodeOptions } from '@jsquash/jpeg/meta'
+import type { EncodeOptions as WebpEncodeOptions } from '@jsquash/webp/meta'
+import type { EncodeOptions as AvifEncodeOptions } from '@jsquash/avif/meta'
 
 export type AvailableCodec = 'png' | 'jpeg' | 'webp' | 'avif' | 'bmp' | 'tiff' | 'ico'
 
@@ -8,7 +13,7 @@ interface CodecModule {
 }
 
 interface JSquashImageData {
-  data: Uint8Array | Uint8ClampedArray
+  data: Uint8ClampedArray<ArrayBufferLike>
   width: number
   height: number
 }
@@ -20,11 +25,33 @@ let avifModule: CodecModule | null = null
 let bmpCodec: typeof import('./local-bmp') | null = null
 let tiffCodec: typeof import('./local-tiff') | null = null
 let icoCodec: typeof import('./local-ico') | null = null
-let oxipngOptimise: ((buffer: ArrayBuffer, options?: unknown) => Promise<ArrayBuffer>) | null = null
-let resizeImage: ((imageData: JSquashImageData, options: { width: number; height: number; method?: string }) => Promise<JSquashImageData>) | null = null
+let oxipngOptimise: ((buffer: ArrayBuffer, options?: Partial<OptimiseOptions>) => Promise<ArrayBuffer>) | null = null
+let resizeImage: ((
+  imageData: JSquashImageData,
+  options: Partial<WorkerResizeOptions> & { width: number; height: number }
+) => Promise<JSquashImageData>) | null = null
 
 let loadingPromise: Promise<void> | null = null
 let codecsReady = false
+
+function toClampedArray(data: Uint8Array | Uint8ClampedArray<ArrayBufferLike>): Uint8ClampedArray<ArrayBuffer> {
+  if (data instanceof Uint8ClampedArray && data.buffer instanceof ArrayBuffer) {
+    return data as Uint8ClampedArray<ArrayBuffer>
+  }
+  return Uint8ClampedArray.from(data) as Uint8ClampedArray<ArrayBuffer>
+}
+
+function normalizeImageData(result: { data: Uint8Array | Uint8ClampedArray<ArrayBufferLike>; width: number; height: number }): JSquashImageData {
+  return {
+    data: toClampedArray(result.data),
+    width: result.width,
+    height: result.height
+  }
+}
+
+function toImageData(image: JSquashImageData): ImageData {
+  return new ImageData(toClampedArray(image.data), image.width, image.height)
+}
 
 async function loadCodecModules() {
   if (loadingPromise) {
@@ -44,12 +71,41 @@ async function loadCodecModules() {
       import('./local-ico')
     ])
 
-    pngModule = { decode: png.decode, encode: png.encode }
-    jpegModule = { decode: jpeg.decode, encode: jpeg.encode }
-    webpModule = { decode: webp.decode, encode: webp.encode }
-    avifModule = { decode: avif.decode, encode: avif.encode }
-    oxipngOptimise = oxipng.optimise
-    resizeImage = resize.default
+    pngModule = {
+      decode: async (buffer: ArrayBuffer) => normalizeImageData(await png.decode(buffer)),
+      encode: async (imageData, options) =>
+        png.encode(toImageData(imageData), options as Parameters<typeof png.encode>[1])
+    }
+    jpegModule = {
+      decode: async (buffer: ArrayBuffer) => normalizeImageData(await jpeg.decode(buffer)),
+      encode: async (imageData, options) =>
+        jpeg.encode(toImageData(imageData), options as Partial<JpegEncodeOptions>)
+    }
+    webpModule = {
+      decode: async (buffer: ArrayBuffer) => normalizeImageData(await webp.decode(buffer)),
+      encode: async (imageData, options) =>
+        webp.encode(toImageData(imageData), options as Partial<WebpEncodeOptions>)
+    }
+    avifModule = {
+      decode: async (buffer: ArrayBuffer) => {
+        const result = await avif.decode(buffer)
+        if (!result) {
+          throw new Error('AVIF decode failed')
+        }
+        return normalizeImageData(result)
+      },
+      encode: async (imageData, options) =>
+        avif.encode(toImageData(imageData), options as (Partial<AvifEncodeOptions> & { bitDepth?: 8 }))
+    }
+    oxipngOptimise = (buffer: ArrayBuffer, options?: Partial<OptimiseOptions>) =>
+      oxipng.optimise(buffer, options as Parameters<typeof oxipng.optimise>[1])
+    resizeImage = async (imageData, options) => {
+      const result = await resize.default(toImageData(imageData), options)
+      if (!result) {
+        throw new Error('Resize failed')
+      }
+      return normalizeImageData(result as ImageData)
+    }
     bmpCodec = bmp
     tiffCodec = tiff
     icoCodec = ico
@@ -109,7 +165,12 @@ export function detectFormat(bytes: Uint8Array): AvailableCodec | null {
       bytes[6] === 0x79 &&
       bytes[7] === 0x70
     ) {
-      const brand = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11])
+      const brand = String.fromCharCode(
+        bytes[8]!,
+        bytes[9]!,
+        bytes[10]!,
+        bytes[11]!
+      )
       if (brand === 'avif' || brand === 'avis' || brand === 'av01') {
         return 'avif'
       }
@@ -147,20 +208,19 @@ export async function decodeImage(buffer: ArrayBuffer, opts: { pageIndex?: numbe
 }
 
 async function fallbackDecode(buffer: ArrayBuffer, opts: { pageIndex?: number }): Promise<JSquashImageData> {
-  const decoders: Array<CodecModule | { decode: (buffer: ArrayBuffer, pageIndex?: number) => Promise<JSquashImageData> } | null> = [
-    pngModule,
-    jpegModule,
-    webpModule,
-    avifModule,
-    bmpCodec,
-    tiffCodec,
-    icoCodec
-  ]
+  const attempts: Array<() => Promise<JSquashImageData>> = []
 
-  for (const decoder of decoders) {
-    if (!decoder) continue
+  if (pngModule) attempts.push(() => pngModule!.decode(buffer))
+  if (jpegModule) attempts.push(() => jpegModule!.decode(buffer))
+  if (webpModule) attempts.push(() => webpModule!.decode(buffer))
+  if (avifModule) attempts.push(() => avifModule!.decode(buffer))
+  if (bmpCodec) attempts.push(() => bmpCodec!.decode(buffer))
+  if (tiffCodec) attempts.push(() => tiffCodec!.decode(buffer, opts.pageIndex ?? 0))
+  if (icoCodec) attempts.push(() => icoCodec!.decode(buffer))
+
+  for (const attempt of attempts) {
     try {
-      return await decoder.decode(buffer, opts.pageIndex)
+      return await attempt()
     } catch {
       continue
     }

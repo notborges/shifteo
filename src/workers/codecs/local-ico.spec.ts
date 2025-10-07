@@ -13,7 +13,8 @@ beforeAll(() => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : ''
     if (url.endsWith('squoosh_png_bg.wasm')) {
       const data = await readFile(wasmPath)
-      return new Response(data, { status: 200 })
+      const wasmBytes = new Uint8Array(data)
+      return new Response(wasmBytes, { status: 200 })
     }
     if (originalFetch) {
       return originalFetch(input as any, init)
@@ -22,7 +23,10 @@ beforeAll(() => {
   }
 
   if (!WebAssembly.instantiateStreaming) {
-    WebAssembly.instantiateStreaming = async (source: Response | Promise<Response>, importObject: WebAssembly.Imports) => {
+    ;(WebAssembly as any).instantiateStreaming = async (
+      source: Response | Promise<Response>,
+      importObject?: WebAssembly.Imports
+    ) => {
       const response = await source
       const buffer = await response.arrayBuffer()
       return WebAssembly.instantiate(buffer, importObject)

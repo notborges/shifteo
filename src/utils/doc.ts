@@ -16,8 +16,8 @@ const DOC_TASKS: Record<DocTask['kind'], DocTaskDescriptor> = {
     label: 'HTML to PDF',
     defaultExtension: 'pdf',
     summarize: (task) => {
-      const margin = task.options?.margin ?? 20
-      const paper = task.options?.page ?? 'A4'
+      const margin = task.kind === 'html_to_pdf' ? task.options?.margin ?? 20 : 20
+      const paper = task.kind === 'html_to_pdf' ? task.options?.page ?? 'A4' : 'A4'
       return `HTML → PDF (${paper}, ${margin}mm margin)`
     }
   },
@@ -25,8 +25,8 @@ const DOC_TASKS: Record<DocTask['kind'], DocTaskDescriptor> = {
     label: 'PDF to Images',
     defaultExtension: 'png',
     summarize: (task) => {
-      const dpi = task.dpi ?? 150
-      const range = task.pageRange
+      const dpi = task.kind === 'pdf_to_images' ? task.dpi ?? 150 : 150
+      const range = task.kind === 'pdf_to_images' ? task.pageRange : undefined
       if (range) {
         return `PDF → Images (${dpi}dpi, pages ${range.start}–${range.end})`
       }
@@ -42,7 +42,7 @@ const DOC_TASKS: Record<DocTask['kind'], DocTaskDescriptor> = {
     label: 'Split PDF',
     defaultExtension: 'pdf',
     summarize: (task) => {
-      const pages = Array.isArray(task.pages) && task.pages.length > 0
+      const pages = task.kind === 'pdf_split' && Array.isArray(task.pages) && task.pages.length > 0
         ? task.pages.join(', ')
         : 'all pages'
       return `Split PDF (${pages})`

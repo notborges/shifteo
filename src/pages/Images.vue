@@ -394,10 +394,10 @@ const formatHints: Record<string, string> = {
   ico: 'Icon - Windows-compatible favicon container'
 }
 
-const losslessFormats = new Set(['png', 'bmp', 'tiff', 'ico'])
+const losslessFormats = new Set<UiImageFormat>(['png', 'bmp', 'tiff', 'ico'])
 const showQualitySlider = computed(() => {
   const target = options.value.to
-  return target !== 'original' && !losslessFormats.has(target as string)
+  return target !== 'original' && !losslessFormats.has(target)
 })
 
 const options = ref<UiImageOptions>({
@@ -710,6 +710,10 @@ async function handleFilesSelected(files: File[]) {
       thumbnailBlob,
       sourcePage: options.pageIndex
     })
+
+    if (thumbnail) {
+      URL.revokeObjectURL(thumbnail)
+    }
   }
 
   for (const file of files) {

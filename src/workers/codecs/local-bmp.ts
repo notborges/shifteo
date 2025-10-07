@@ -90,10 +90,10 @@ function encode(imageData: JSquashImageData): Promise<ArrayBuffer> {
     const rowOffset = row * rowSize
     for (let col = 0; col < width; col++) {
       const idx = rowOffset + col * 4
-      const red = data[idx]
-      const green = data[idx + 1]
-      const blue = data[idx + 2]
-      const alpha = data[idx + 3]
+      const red = data[idx] ?? 0
+      const green = data[idx + 1] ?? 0
+      const blue = data[idx + 2] ?? 0
+      const alpha = data[idx + 3] ?? 255
 
       view.setUint8(offset++, blue)
       view.setUint8(offset++, green)

@@ -1,5 +1,12 @@
 export type EncodableFormat = 'png' | 'jpeg' | 'webp' | 'avif'
 
+function toArrayBuffer(view: Uint8Array): ArrayBuffer {
+  if (view.byteOffset === 0 && view.byteLength === view.buffer.byteLength && view.buffer instanceof ArrayBuffer) {
+    return view.buffer
+  }
+  return view.slice().buffer
+}
+
 function rebuildFromParts(parts: Uint8Array[]): ArrayBuffer {
   const total = parts.reduce((sum, part) => sum + part.length, 0)
   const output = new Uint8Array(total)
@@ -8,11 +15,11 @@ function rebuildFromParts(parts: Uint8Array[]): ArrayBuffer {
     output.set(part, position)
     position += part.length
   }
-  return output.buffer
+  return toArrayBuffer(output)
 }
 
 function stripJpegMetadata(buffer: Uint8Array): ArrayBuffer {
-  if (buffer.length < 2) return buffer.buffer
+  if (buffer.length < 2) return toArrayBuffer(buffer)
 
   const parts: Uint8Array[] = [buffer.subarray(0, 2)] // SOI
   let offset = 2
@@ -23,7 +30,7 @@ function stripJpegMetadata(buffer: Uint8Array): ArrayBuffer {
       break
     }
 
-    const marker = buffer[offset + 1]
+    const marker = buffer[offset + 1]!
 
     if (marker === 0xD9 || marker === 0xDA) {
       parts.push(buffer.subarray(offset))
@@ -35,7 +42,7 @@ function stripJpegMetadata(buffer: Uint8Array): ArrayBuffer {
       break
     }
 
-    const segmentLength = (buffer[offset + 2] << 8) + buffer[offset + 3]
+    const segmentLength = (buffer[offset + 2]! << 8) + buffer[offset + 3]!
     const segmentEnd = offset + 2 + segmentLength
     if (segmentEnd > buffer.length) {
       parts.push(buffer.subarray(offset))
@@ -56,18 +63,18 @@ function stripJpegMetadata(buffer: Uint8Array): ArrayBuffer {
 }
 
 function stripPngMetadata(buffer: Uint8Array): ArrayBuffer {
-  if (buffer.length < 8) return buffer.buffer
+  if (buffer.length < 8) return toArrayBuffer(buffer)
 
   const parts: Uint8Array[] = [buffer.subarray(0, 8)]
   let offset = 8
 
   while (offset + 8 <= buffer.length) {
-    const length = (((buffer[offset] << 24) >>> 0) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]) >>> 0
+    const length = (((buffer[offset]! << 24) >>> 0) | (buffer[offset + 1]! << 16) | (buffer[offset + 2]! << 8) | buffer[offset + 3]!) >>> 0
     const type = String.fromCharCode(
-      buffer[offset + 4],
-      buffer[offset + 5],
-      buffer[offset + 6],
-      buffer[offset + 7]
+      buffer[offset + 4]!,
+      buffer[offset + 5]!,
+      buffer[offset + 6]!,
+      buffer[offset + 7]!
     )
     const chunkTotal = 12 + length
     const chunkEnd = offset + chunkTotal
@@ -95,8 +102,12 @@ function stripPngMetadata(buffer: Uint8Array): ArrayBuffer {
 }
 
 function stripWebpMetadata(buffer: Uint8Array): ArrayBuffer {
-  if (buffer.length < 12 || String.fromCharCode(buffer[0], buffer[1], buffer[2], buffer[3]) !== 'RIFF') {
-    return buffer.buffer
+  if (buffer.length < 12) {
+    return toArrayBuffer(buffer)
+  }
+
+  if (String.fromCharCode(buffer[0]!, buffer[1]!, buffer[2]!, buffer[3]!) !== 'RIFF') {
+    return toArrayBuffer(buffer)
   }
 
   const chunks: Uint8Array[] = []
@@ -105,12 +116,12 @@ function stripWebpMetadata(buffer: Uint8Array): ArrayBuffer {
 
   while (offset + 8 <= buffer.length) {
     const chunkId = String.fromCharCode(
-      buffer[offset],
-      buffer[offset + 1],
-      buffer[offset + 2],
-      buffer[offset + 3]
+      buffer[offset]!,
+      buffer[offset + 1]!,
+      buffer[offset + 2]!,
+      buffer[offset + 3]!
     )
-    const chunkSize = buffer[offset + 4] | (buffer[offset + 5] << 8) | (buffer[offset + 6] << 16) | (buffer[offset + 7] << 24)
+    const chunkSize = buffer[offset + 4]! | (buffer[offset + 5]! << 8) | (buffer[offset + 6]! << 16) | (buffer[offset + 7]! << 24)
     const paddedSize = chunkSize + (chunkSize % 2)
     const chunkEnd = offset + 8 + paddedSize
 
@@ -143,7 +154,7 @@ function stripWebpMetadata(buffer: Uint8Array): ArrayBuffer {
     position += chunk.length
   }
 
-  return output.buffer
+  return toArrayBuffer(output)
 }
 
 export function stripMetadata(buffer: ArrayBuffer, format: EncodableFormat): ArrayBuffer {
@@ -170,9 +181,9 @@ export function hasExifChunk(buffer: ArrayBuffer, format: EncodableFormat): bool
       let offset = 2
       while (offset + 4 <= bytes.length) {
         if (bytes[offset] !== 0xFF) break
-        const marker = bytes[offset + 1]
+        const marker = bytes[offset + 1]!
         if (marker === 0xDA || marker === 0xD9) break
-        const segmentLength = (bytes[offset + 2] << 8) + bytes[offset + 3]
+        const segmentLength = (bytes[offset + 2]! << 8) + bytes[offset + 3]!
         const segmentEnd = offset + 2 + segmentLength
         if (segmentEnd > bytes.length) break
         if (marker === 0xE1) {
@@ -185,12 +196,16 @@ export function hasExifChunk(buffer: ArrayBuffer, format: EncodableFormat): bool
     case 'png': {
       let offset = 8
       while (offset + 8 <= bytes.length) {
-        const length = (((bytes[offset] << 24) >>> 0) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0
+        const length =
+          (((bytes[offset]! << 24) >>> 0) |
+            (bytes[offset + 1]! << 16) |
+            (bytes[offset + 2]! << 8) |
+            bytes[offset + 3]!) >>> 0
         const type = String.fromCharCode(
-          bytes[offset + 4],
-          bytes[offset + 5],
-          bytes[offset + 6],
-          bytes[offset + 7]
+          bytes[offset + 4]!,
+          bytes[offset + 5]!,
+          bytes[offset + 6]!,
+          bytes[offset + 7]!
         )
         if (type === 'eXIf') return true
         const chunkTotal = 12 + length
@@ -205,12 +220,16 @@ export function hasExifChunk(buffer: ArrayBuffer, format: EncodableFormat): bool
       let offset = 12
       while (offset + 8 <= bytes.length) {
         const chunkId = String.fromCharCode(
-          bytes[offset],
-          bytes[offset + 1],
-          bytes[offset + 2],
-          bytes[offset + 3]
+          bytes[offset]!,
+          bytes[offset + 1]!,
+          bytes[offset + 2]!,
+          bytes[offset + 3]!
         )
-        const chunkSize = bytes[offset + 4] | (bytes[offset + 5] << 8) | (bytes[offset + 6] << 16) | (bytes[offset + 7] << 24)
+        const chunkSize =
+          bytes[offset + 4]! |
+          (bytes[offset + 5]! << 8) |
+          (bytes[offset + 6]! << 16) |
+          (bytes[offset + 7]! << 24)
         const paddedSize = chunkSize + (chunkSize % 2)
         const chunkEnd = offset + 8 + paddedSize
         if (chunkEnd > bytes.length) break

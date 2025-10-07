@@ -109,7 +109,10 @@ async function convertImage(
     onProgress?.(0.75)
     let encodedBuffer = await encodeImage(processedImageData, opts.to, { quality: opts.quality })
     if (opts.stripExif) {
-      encodedBuffer = stripMetadata(encodedBuffer, opts.to)
+      const metadataFormats = new Set(['png', 'jpeg', 'webp', 'avif'])
+      if (metadataFormats.has(opts.to)) {
+        encodedBuffer = stripMetadata(encodedBuffer, opts.to as any)
+      }
     }
     onProgress?.(0.95)
 

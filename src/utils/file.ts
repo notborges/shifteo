@@ -1,5 +1,21 @@
 // File manipulation and download utilities
 
+type Canvas2DContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+type ClampedArray = Uint8ClampedArray<ArrayBuffer>
+
+function get2DContext(canvas: OffscreenCanvas | HTMLCanvasElement): Canvas2DContext | null {
+  const context = canvas.getContext('2d')
+  if (!context) return null
+  return context as Canvas2DContext
+}
+
+function toClampedArray(data: Uint8Array | Uint8ClampedArray): ClampedArray {
+  if (data instanceof Uint8ClampedArray && data.buffer instanceof ArrayBuffer) {
+    return data as ClampedArray
+  }
+  return Uint8ClampedArray.from(data) as ClampedArray
+}
+
 /**
  * Trigger file download in browser
  */
@@ -384,28 +400,32 @@ async function renderImageDataThumbnail(imageData: { data: Uint8ClampedArray | U
   const targetHeight = Math.max(1, Math.round(imageData.height * scale))
 
   const sourceCanvas = createCanvas(imageData.width, imageData.height)
-  const sourceCtx = sourceCanvas.getContext('2d')
-  if (!sourceCtx) {
+  const sourceCtx = get2DContext(sourceCanvas)
+  if (!sourceCtx || typeof (sourceCtx as CanvasRenderingContext2D).putImageData !== 'function') {
     return null
   }
 
-  const data = imageData.data instanceof Uint8ClampedArray
-    ? imageData.data
-    : new Uint8ClampedArray(imageData.data)
-
-  sourceCtx.putImageData(new ImageData(data, imageData.width, imageData.height), 0, 0)
+  const data = toClampedArray(imageData.data)
+  const imageDataObj = new ImageData(data, imageData.width, imageData.height)
+  if ('putImageData' in sourceCtx) {
+    (sourceCtx as CanvasRenderingContext2D).putImageData(imageDataObj, 0, 0)
+  } else {
+    return null
+  }
 
   const outputCanvas = createCanvas(size, size)
-  const outputCtx = outputCanvas.getContext('2d')
-  if (!outputCtx) {
+  const outputCtx = get2DContext(outputCanvas)
+  if (!outputCtx || typeof (outputCtx as CanvasRenderingContext2D).drawImage !== 'function') {
     return null
   }
 
-  outputCtx.clearRect(0, 0, size, size)
+  if ('clearRect' in outputCtx) {
+    (outputCtx as CanvasRenderingContext2D).clearRect(0, 0, size, size)
+  }
 
   const offsetX = (size - targetWidth) / 2
   const offsetY = (size - targetHeight) / 2
-  outputCtx.drawImage(sourceCanvas as any, 0, 0, imageData.width, imageData.height, offsetX, offsetY, targetWidth, targetHeight)
+  ;(outputCtx as CanvasRenderingContext2D).drawImage(sourceCanvas as any, 0, 0, imageData.width, imageData.height, offsetX, offsetY, targetWidth, targetHeight)
 
   const blob = await canvasToBlob(outputCanvas)
   return blob ? URL.createObjectURL(blob) : null
