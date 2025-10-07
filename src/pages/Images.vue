@@ -308,7 +308,7 @@ import { useToastStore } from '@/app/stores/toast'
 import { imageWorkerPool as imageWorker } from '@/workers/workerPool'
 import { isFormatSupported, generateOutputFilename, formatFileSize } from '@/utils/format'
 import { getImageDimensions, generateThumbnail, downloadFile, downloadAsZip } from '@/utils/file'
-import { storeQueueJob } from '@/utils/idb'
+import { storeQueueJob, removeQueueJob } from '@/utils/idb'
 import { Upload, ListX } from 'lucide-vue-next'
 import type { ImageConvertOpts, ImageFormat, Job } from '@/workers/types'
 
@@ -632,9 +632,20 @@ async function handleDownload(job: Job) {
   const blob = Array.isArray(job.result) ? job.result[0] : job.result
   const filename = generateOutputFilename(job.file.name, options.value.to, settingsStore.outputNamingPattern)
   await downloadFile(blob, filename)
+
+  // Remove from storage after download
+  try {
+    console.log('[Download] Removing job from IDB:', job.id)
+    await removeQueueJob(job.id)
+    console.log('[Download] Successfully removed from IDB')
+  } catch (error) {
+    console.error('[Download] Failed to remove from IDB:', error)
+  }
 }
 
 async function downloadAll() {
+  const completedIds = queueStore.completedJobs.map(j => j.id)
+
   const files = queueStore.completedJobs.map(job => ({
     blob: Array.isArray(job.result) ? job.result[0]! : job.result!,
     filename: generateOutputFilename(
@@ -646,6 +657,11 @@ async function downloadAll() {
 
   const timestamp = new Date().toISOString().split('T')[0]
   await downloadAsZip(files, `shifteo-${timestamp}.zip`)
+
+  // Clear completed files from storage after ZIP download
+  for (const id of completedIds) {
+    await removeQueueJob(id)
+  }
 
   toastStore.success(
     'Download Complete',

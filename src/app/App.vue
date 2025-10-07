@@ -73,7 +73,8 @@ onMounted(async () => {
   const restored = await restoreQueueJobs()
   if (restored.length > 0) {
     for (const item of restored) {
-      queueStore.addJob({
+      queueStore.restoreJob({
+        id: item.id,
         file: item.file,
         kind: 'image',
         status: 'idle',
@@ -83,7 +84,7 @@ onMounted(async () => {
       })
     }
 
-    console.log(`[App] Restored ${restored.length} files from previous session`)
+    console.log(`[App] Restored ${restored.length} files with original IDs`)
 
     // Show toast only if on images page
     if (route.path === '/images') {

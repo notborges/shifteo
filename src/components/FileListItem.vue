@@ -60,7 +60,7 @@
         <div class="file-row__actions">
           <UiButton
             v-if="job.status === 'completed' && job.result"
-            @click="emit('download', job)"
+            @click.stop="emit('download', job)"
             variant="quiet"
             size="sm"
             icon-only
@@ -71,7 +71,7 @@
           </UiButton>
           <UiButton
             v-if="job.status === 'error'"
-            @click="emit('retry', job.id)"
+            @click.stop="emit('retry', job.id)"
             variant="quiet"
             tone="warning"
             size="sm"
@@ -82,7 +82,7 @@
             <RotateCw :size="16" />
           </UiButton>
           <UiButton
-            @click="emit('remove', job.id)"
+            @click.stop="emit('remove', job.id)"
             variant="destructive"
             size="sm"
             icon-only
@@ -118,7 +118,7 @@
         <div class="file-row__actions flex-shrink-0">
           <UiButton
             v-if="job.status === 'completed' && job.result"
-            @click="emit('download', job)"
+            @click.stop="emit('download', job)"
             variant="quiet"
             size="sm"
             icon-only
@@ -129,7 +129,7 @@
           </UiButton>
           <UiButton
             v-if="job.status === 'error'"
-            @click="emit('retry', job.id)"
+            @click.stop="emit('retry', job.id)"
             variant="quiet"
             tone="warning"
             size="sm"
@@ -140,7 +140,7 @@
             <RotateCw :size="16" />
           </UiButton>
           <UiButton
-            @click="emit('remove', job.id)"
+            @click.stop="emit('remove', job.id)"
             variant="destructive"
             size="sm"
             icon-only

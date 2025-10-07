@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import type { Job, JobStatus } from '@/workers/types'
 import { generateFileId } from '@/utils/file'
-import { removeQueueJob as removeFromIDB, clearAllTempFiles } from '@/utils/idb'
+import { removeQueueJob as removeFromIDB, removeMultipleQueueJobs, clearAllTempFiles } from '@/utils/idb'
 
 interface QueueState {
   jobs: Job[]
@@ -34,6 +34,16 @@ export const useQueueStore = defineStore('queue', {
       }
       this.jobs.push(newJob)
       return newJob.id
+    },
+
+    restoreJob(job: Omit<Job, 'createdAt' | 'progress'> & { id: string }) {
+      const restoredJob: Job = {
+        ...job,
+        createdAt: Date.now(),
+        progress: 0
+      }
+      this.jobs.push(restoredJob)
+      return restoredJob.id
     },
 
     updateJob(id: string, updates: Partial<Job>) {
@@ -116,9 +126,9 @@ export const useQueueStore = defineStore('queue', {
       })
       this.jobs = this.jobs.filter(j => j.status !== 'completed')
 
-      // Remove from IndexedDB
-      for (const id of completedIds) {
-        await removeFromIDB(id)
+      // Batch remove from IndexedDB
+      if (completedIds.length > 0) {
+        await removeMultipleQueueJobs(completedIds)
       }
     },
 

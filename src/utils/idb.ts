@@ -293,9 +293,35 @@ export async function restoreQueueJobs(): Promise<Array<{
  */
 export async function removeQueueJob(id: string): Promise<void> {
   try {
+    console.log('[IDB] Removing job:', id)
     const db = await getDB()
-    await db.delete('tempFiles', id)
+    const tx = db.transaction('tempFiles', 'readwrite')
+    await tx.store.delete(id)
+    await tx.done
+    console.log('[IDB] Job removed and transaction committed')
   } catch (error) {
-    console.error('Failed to remove queue job:', error)
+    console.error('[IDB] Failed to remove queue job:', error)
+    throw error
+  }
+}
+
+/**
+ * Remove multiple jobs from storage (batch operation)
+ */
+export async function removeMultipleQueueJobs(ids: string[]): Promise<void> {
+  try {
+    console.log('[IDB] Removing multiple jobs:', ids.length)
+    const db = await getDB()
+    const tx = db.transaction('tempFiles', 'readwrite')
+
+    for (const id of ids) {
+      await tx.store.delete(id)
+    }
+
+    await tx.done
+    console.log('[IDB] Batch removal complete')
+  } catch (error) {
+    console.error('[IDB] Batch removal failed:', error)
+    throw error
   }
 }
