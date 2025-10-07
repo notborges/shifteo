@@ -1587,6 +1587,14 @@ body {
   background: var(--color-bg-inset);
 }
 
+.modal-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-width: 0;
+  flex: 1;
+}
+
 .modal-title {
   font-size: 14px;
   letter-spacing: 0.18em;
@@ -1595,6 +1603,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
 }
 
 .modal-close {
@@ -1605,6 +1614,17 @@ body {
   padding: var(--space-8);
   transition: color var(--motion-fast) ease;
   border-radius: var(--radius-chip);
+}
+
+.modal-page-badge {
+  font-family: var(--font-ui-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  padding: 2px 8px;
+  border: 1px solid var(--color-line-key);
+  border-radius: var(--radius-chip);
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .modal-close:hover {

@@ -49,16 +49,16 @@
           </template>
         </div>
         <div class="file-row__meta file-row__dimensions mono text-text-muted">
-          <template v-if="originalFormat === 'svg' && !job.outputDimensions">
-            Vector
-          </template>
-          <template v-else-if="dimensionsChanged">
-            <span class="text-text-muted">{{ job.originalDimensions!.width }}×{{ job.originalDimensions!.height }}</span>
+          <template v-if="dimensionsChanged || (originalFormat === 'svg' && job.outputDimensions)">
+            <span class="text-text-muted">{{ originalDimensionLabel }}</span>
             <ArrowRight :size="12" class="inline mx-1 text-text-muted" />
-            <span class="text-text-secondary">{{ job.outputDimensions!.width }}×{{ job.outputDimensions!.height }}</span>
+            <span class="text-text-secondary">{{ outputDimensionLabel }}</span>
           </template>
           <template v-else-if="job.originalDimensions || job.outputDimensions">
-            {{ (job.outputDimensions || job.originalDimensions)!.width }}×{{ (job.outputDimensions || job.originalDimensions)!.height }}
+            {{ outputDimensionLabel || originalDimensionLabel }}
+          </template>
+          <template v-else-if="originalFormat === 'svg'">
+            Vector
           </template>
         </div>
         <div class="file-row__actions">
@@ -171,19 +171,19 @@
         </div>
 
         <div v-if="originalFormat === 'svg' || dimensionsChanged || job.originalDimensions || job.outputDimensions" class="text-text-secondary">
-          <template v-if="originalFormat === 'svg' && !job.outputDimensions">
-            Vector
-          </template>
-          <template v-else-if="dimensionsChanged">
-            {{ job.originalDimensions!.width }}×{{ job.originalDimensions!.height }}
+          <template v-if="dimensionsChanged || (originalFormat === 'svg' && job.outputDimensions)">
+            {{ originalDimensionLabel }}
             <ArrowRight :size="10" class="inline mx-1" />
-            {{ job.outputDimensions!.width }}×{{ job.outputDimensions!.height }}
+            {{ outputDimensionLabel }}
           </template>
           <template v-else-if="job.outputDimensions">
-            {{ job.outputDimensions.width }}×{{ job.outputDimensions.height }}
+            {{ outputDimensionLabel }}
           </template>
           <template v-else-if="job.originalDimensions">
-            {{ job.originalDimensions.width }}×{{ job.originalDimensions.height }}
+            {{ originalDimensionLabel }}
+          </template>
+          <template v-else>
+            {{ originalDimensionLabel }}
           </template>
         </div>
       </div>
@@ -261,6 +261,25 @@ const dimensionsChanged = computed(() => {
 
 const pageLabel = computed(() => {
   return props.job.sourcePage != null ? `Page ${props.job.sourcePage + 1}` : ''
+})
+
+const originalDimensionLabel = computed(() => {
+  if (originalFormat.value === 'svg') {
+    return 'Vector'
+  }
+  if (props.job.originalDimensions) {
+    const { width, height } = props.job.originalDimensions
+    return `${width}×${height}`
+  }
+  return ''
+})
+
+const outputDimensionLabel = computed(() => {
+  if (props.job.outputDimensions) {
+    const { width, height } = props.job.outputDimensions
+    return `${width}×${height}`
+  }
+  return ''
 })
 
 const statusDotStyle = computed(() => {

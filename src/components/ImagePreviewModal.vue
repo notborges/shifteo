@@ -16,7 +16,10 @@
           tabindex="-1"
         >
           <div class="modal-header">
-            <div class="modal-title mono">{{ job?.file.name }}</div>
+            <div class="modal-heading">
+              <div class="modal-title mono">{{ job?.file.name }}</div>
+              <div v-if="pageBadge" class="modal-page-badge">{{ pageBadge }}</div>
+            </div>
             <button @click="closeModal" class="modal-close" aria-label="Close">
               <X :size="20" />
             </button>
@@ -25,17 +28,8 @@
           <div class="modal-body">
             <div class="modal-comparison modal-comparison--desktop">
               <div class="comparison-slider" ref="sliderContainer">
-                <div class="comparison-layer">
-                  <img
-                    v-if="processedImageUrl"
-                    :src="processedImageUrl"
-                    class="comparison-image"
-                    alt="After"
-                  />
-                </div>
-
                 <div
-                  class="comparison-layer comparison-layer--overlay"
+                  class="comparison-layer"
                   :style="{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }"
                 >
                   <img
@@ -43,6 +37,18 @@
                     :src="originalImageUrl"
                     class="comparison-image"
                     alt="Before"
+                  />
+                </div>
+
+                <div
+                  class="comparison-layer comparison-layer--overlay"
+                  :style="{ clipPath: `inset(0 0 0 ${sliderPosition}%)` }"
+                >
+                  <img
+                    v-if="processedImageUrl"
+                    :src="processedImageUrl"
+                    class="comparison-image"
+                    alt="After"
                   />
                 </div>
 
@@ -70,7 +76,10 @@
                 <div class="stat-item">
                   <span class="stat-label">Original</span>
                   <span class="stat-value mono">
-                    <template v-if="job?.originalDimensions">
+                    <template v-if="isVector">
+                      Vector •
+                    </template>
+                    <template v-else-if="job?.originalDimensions">
                       {{ job.originalDimensions.width }}×{{ job.originalDimensions.height }} •
                     </template>
                     {{ formatFileSize(job?.file.size || 0) }}
@@ -100,11 +109,13 @@
                     class="comparison-image-mobile"
                   />
                 </div>
-                <div class="comparison-meta-mobile">
-                  <span v-if="job?.originalDimensions">{{ job.originalDimensions.width }}×{{ job.originalDimensions.height }}</span>
-                  <span>{{ formatFileSize(job?.file.size || 0) }}</span>
-                </div>
+              <div class="comparison-meta-mobile">
+                <span v-if="isVector">Vector</span>
+                <span v-else-if="job?.originalDimensions">{{ job.originalDimensions.width }}×{{ job.originalDimensions.height }}</span>
+                <span>{{ formatFileSize(job?.file.size || 0) }}</span>
+                <span v-if="pageBadge" class="text-text-muted">{{ pageBadge }}</span>
               </div>
+            </div>
 
               <div class="comparison-panel-mobile">
                 <div class="comparison-label">AFTER</div>
@@ -217,6 +228,9 @@ const sizeChangeClass = computed(() => {
 })
 
 const originalFormat = computed(() => (props.job ? inferOriginalImageFormat(props.job.file) : null))
+
+const isVector = computed(() => originalFormat.value === 'svg')
+const pageBadge = computed(() => (props.job?.sourcePage != null ? `Page ${props.job.sourcePage + 1}` : ''))
 
 const targetFormat = computed(() => props.job?.outputFormat ?? null)
 

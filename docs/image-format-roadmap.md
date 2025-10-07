@@ -11,7 +11,7 @@ This document tracks the work required to reach "any common image in → any des
 | Format | Tasks | Library Candidate | License | Notes |
 | --- | --- | --- | --- | --- |
 | HEIC / HEIF | ☐ Decode ☐ Encode ☐ Metadata support ☐ Fixtures/tests | `libheif-wasm`, `heic2any` | BSD / MIT (LGPL for full libheif) | Requires fallback for unsupported browsers. Patent licence needed for HEVC. |
-| TIFF | ☑ Decode ☑ Encode ☐ Multi-page handling | `utif` | MIT | Support for 8/16-bit, grayscale, palette. |
+| TIFF | ☑ Decode ☑ Encode ☑ Multi-page handling | `utif` | MIT | Each page added as separate job; compression tuning TBD. |
 | GIF (still) | ☐ Decode frame ☐ Optional encode | `gifuct-js` | MIT | Treat animation as optional stretch goal. |
 | JPEG XL | ☐ Decode ☐ Encode | `libjxl` | BSD | Large wasm payload; lazy-load. |
 | BMP / ICO | ☑ BMP decode ☑ BMP encode ☑ ICO decode/encode | In-house BMP module / `icojs` | MIT | Multi-size ICO for favicons. |

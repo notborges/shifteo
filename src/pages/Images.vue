@@ -587,8 +587,27 @@ async function convertSVGToPNG(file: File, targetSize: number): Promise<Blob> {
     height = viewBox[3]!
   }
 
-  if (!width || !height) {
-    width = height = targetSize
+  const fallbackEdge = Math.round(Math.sqrt(1_000_000))
+
+  if (!width && !height) {
+    width = fallbackEdge
+    height = fallbackEdge
+  } else if (!width && height) {
+    width = Math.round((fallbackEdge * fallbackEdge) / Math.max(height, 1))
+  } else if (width && !height) {
+    height = Math.round((fallbackEdge * fallbackEdge) / Math.max(width, 1))
+  }
+
+  if (!width || !height || width <= 0 || height <= 0) {
+    width = targetSize
+    height = targetSize
+  }
+
+  const maxEdge = Math.max(width, height)
+  if (maxEdge > 0 && targetSize > 0 && maxEdge !== targetSize) {
+    const scale = targetSize / maxEdge
+    width = Math.max(1, Math.round(width * scale))
+    height = Math.max(1, Math.round(height * scale))
   }
 
   const blob = new Blob([svgText], { type: 'image/svg+xml' })
@@ -691,10 +710,6 @@ async function handleFilesSelected(files: File[]) {
       thumbnailBlob,
       sourcePage: options.pageIndex
     })
-
-    if (thumbnail) {
-      URL.revokeObjectURL(thumbnail)
-    }
   }
 
   for (const file of files) {
