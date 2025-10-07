@@ -837,12 +837,15 @@ async function startConversion() {
     return sum + size
   }, 0)
   const savedBytes = originalTotalSize - newTotalSize
-  const avgCompression = originalTotalSize > 0 ? Math.round((savedBytes / originalTotalSize) * 100) : 0
+  const percentChange = originalTotalSize > 0 ? Math.round((savedBytes / originalTotalSize) * 100) : 0
+  const sizeSummary = savedBytes >= 0
+    ? `Saved ${formatFileSize(savedBytes)} (${percentChange}% compression)`
+    : `Larger by ${formatFileSize(Math.abs(savedBytes))} (${Math.abs(percentChange)}% increase)`
 
   if (errorCount === 0) {
     toastStore.success(
       'Processing Complete',
-      `${count} files in ${elapsed}s • Saved ${formatFileSize(savedBytes)} (${avgCompression}% compression)`
+      `${count} files in ${elapsed}s • ${sizeSummary}`
     )
   } else if (errorCount < count) {
     toastStore.warning(
