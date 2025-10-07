@@ -82,6 +82,85 @@
       <UiPanel class="col-span-12 lg:col-span-6">
         <template #header>
           <div class="flex items-center gap-2">
+            <FileText :size="16" />
+            <span>Document Defaults</span>
+          </div>
+          <span class="panel__meta">Used for upcoming PDF tools</span>
+        </template>
+        <div class="space-y-6">
+          <div>
+            <span class="body-text text-text-secondary uppercase tracking-wider">Paper Size</span>
+            <div class="mt-3 grid grid-cols-2 gap-3">
+              <UiButton
+                v-for="paper in paperSizes"
+                :key="paper"
+                @click="updateSetting('defaultPdfPaperSize', paper)"
+                type="button"
+                variant="solid"
+                :tone="settings.defaultPdfPaperSize === paper ? 'accent' : 'default'"
+              >
+                <span class="mono tracking-wider">{{ paper }}</span>
+              </UiButton>
+            </div>
+          </div>
+
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div class="form-field">
+              <label>Margin (mm)</label>
+              <input
+                type="number"
+                class="input"
+                :value="settings.defaultPdfMargin"
+                min="0"
+                max="100"
+                step="1"
+                @change="handleNumberChange('defaultPdfMargin', $event, { min: 0, max: 100 })"
+              />
+            </div>
+            <div class="form-field">
+              <label>DPI</label>
+              <input
+                type="number"
+                class="input"
+                :value="settings.defaultPdfDpi"
+                min="72"
+                max="600"
+                step="1"
+                @change="handleNumberChange('defaultPdfDpi', $event, { min: 72, max: 600 })"
+              />
+            </div>
+          </div>
+        </div>
+      </UiPanel>
+
+      <UiPanel class="col-span-12 lg:col-span-6">
+        <template #header>
+          <div class="flex items-center gap-2">
+            <Type :size="16" />
+            <span>File Naming</span>
+          </div>
+          <span class="panel__meta">Tokens: ${name} ${ext} ${w} ${h} ${p}</span>
+        </template>
+        <div class="space-y-4">
+          <div class="form-field">
+            <label>Pattern</label>
+            <input
+              type="text"
+              class="input mono"
+              :value="settings.outputNamingPattern"
+              @change="handlePatternChange"
+            />
+          </div>
+          <p class="body-text text-text-muted">
+            Customize exported filenames using tokens. For example, <span class="mono">${name}-${w}x${h}.${ext}</span>
+            adds output dimensions.
+          </p>
+        </div>
+      </UiPanel>
+
+      <UiPanel class="col-span-12 lg:col-span-6">
+        <template #header>
+          <div class="flex items-center gap-2">
             <Database :size="16" />
             <span>Local Storage</span>
           </div>
@@ -105,13 +184,14 @@ import { getStorageStats, clearAllTempFiles } from '@/utils/idb'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiPanel from '@/components/ui/UiPanel.vue'
 import { formatFileSize } from '@/utils/format'
-import { Image, Sliders, Shield, Database } from 'lucide-vue-next'
-import type { ImageFormat } from '@/workers/types'
+import { Image, Sliders, Shield, Database, FileText, Type } from 'lucide-vue-next'
+import type { AppSettings, ImageFormat } from '@/workers/types'
 
 const settingsStore = useSettingsStore()
 const settings = settingsStore.$state
 
-const formats: ImageFormat[] = ['png', 'jpeg', 'webp', 'avif']
+const formats: ImageFormat[] = ['png', 'jpeg', 'webp', 'avif', 'bmp', 'tiff', 'ico']
+const paperSizes: AppSettings['defaultPdfPaperSize'][] = ['A4', 'Letter']
 
 const storageStats = ref({
   tempFilesCount: 0,
@@ -122,13 +202,37 @@ onMounted(async () => {
   storageStats.value = await getStorageStats()
 })
 
-function updateSetting(key: string, value: any) {
-  settingsStore.updateSettings({ [key]: value })
+async function updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
+  await settingsStore.updateSettings({ [key]: value } as Partial<AppSettings>)
 }
 
 function updateQuality(event: Event) {
   const value = parseFloat((event.target as HTMLInputElement).value)
   updateSetting('defaultImageQuality', value)
+}
+
+type NumericSettingKey = {
+  [K in keyof AppSettings]: AppSettings[K] extends number ? K : never
+}[keyof AppSettings]
+
+function handleNumberChange<K extends NumericSettingKey>(key: K, event: Event, clamp: { min?: number; max?: number } = {}) {
+  const input = event.target as HTMLInputElement
+  const parsed = Number(input.value)
+  if (!Number.isFinite(parsed)) return
+
+  let next = parsed
+  if (typeof clamp.min === 'number') next = Math.max(clamp.min, next)
+  if (typeof clamp.max === 'number') next = Math.min(clamp.max, next)
+
+  updateSetting(key, next as AppSettings[K])
+  input.value = String(next)
+}
+
+function handlePatternChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const value = input.value.trim() || '${name}.${ext}'
+  updateSetting('outputNamingPattern', value)
+  input.value = value
 }
 
 async function clearStorage() {

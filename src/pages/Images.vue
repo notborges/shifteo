@@ -311,7 +311,7 @@
 
     <ImagePreviewModal
       :job="previewJob"
-      :isOpen="showPreview"
+      :isOpen="isPreviewOpen"
       @close="closePreview"
       @download="handleDownload"
     />
@@ -422,16 +422,16 @@ const autoDownload = ref(false)
 
 // Preview modal
 const previewJob = ref<Job | null>(null)
-const showPreview = ref(false)
+const isPreviewOpen = ref(false)
 
 function openPreview(job: Job) {
   if (job.status !== 'completed' || !job.result) return
   previewJob.value = job
-  showPreview.value = true
+  isPreviewOpen.value = true
 }
 
 function closePreview() {
-  showPreview.value = false
+  isPreviewOpen.value = false
   previewJob.value = null
 }
 

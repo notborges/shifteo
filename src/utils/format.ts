@@ -155,12 +155,18 @@ export function generateOutputFilename(
 ): string {
   const nameWithoutExt = originalName.replace(/\.[^/.]+$/, '')
 
-  return pattern
-    .replace('${name}', nameWithoutExt)
-    .replace('${ext}', format)
-    .replace('${w}', metadata?.width?.toString() ?? '')
-    .replace('${h}', metadata?.height?.toString() ?? '')
-    .replace('${p}', metadata?.page ? metadata.page.toString() : '')
+  const tokens: Record<string, string> = {
+    name: nameWithoutExt,
+    ext: format,
+    w: metadata?.width ? String(metadata.width) : '',
+    h: metadata?.height ? String(metadata.height) : '',
+    p: metadata?.page ? String(metadata.page) : ''
+  }
+
+  return pattern.replace(/\$\{(name|ext|w|h|p)\}/gi, (_, key: string) => {
+    const value = tokens[key.toLowerCase()]
+    return value ?? ''
+  })
 }
 
 export type OriginalImageFormat = 'png' | 'jpeg' | 'webp' | 'avif' | 'svg'
