@@ -6,45 +6,51 @@
         <div class="file-row__status">
           <span class="status-dot" :style="statusDotStyle" />
         </div>
-        <div class="file-row__name mono">
-          {{ job.file.name }}
+        <div class="file-row__thumbnail">
+          <img
+            v-if="job.thumbnail"
+            :src="job.thumbnail"
+            :alt="job.file.name"
+            class="file-thumbnail"
+          />
+          <div v-else class="file-thumbnail file-thumbnail--placeholder">
+            <ImageIcon :size="20" />
+          </div>
         </div>
-        <div class="file-row__meta mono">
-          {{ formatFileSize(job.file.size) }}
+        <div class="file-row__name">
+          <div class="mono truncate">{{ job.file.name }}</div>
+          <div v-if="formatChanged" class="file-row__format-badge">
+            {{ originalFormat?.toUpperCase() }}
+            <ArrowRight :size="10" class="inline mx-0.5" />
+            {{ targetFormat?.toUpperCase() }}
+          </div>
         </div>
-        <div class="text-center text-text-muted">
-          <ArrowRight :size="16" v-if="job.result || job.status === 'running'" />
-        </div>
+
         <div class="file-row__meta mono">
           <template v-if="job.status === 'running'">
             {{ job.stage || 'Processing' }}
           </template>
           <template v-else-if="job.status === 'completed' && job.result">
-            <span :class="sizeChangeClass">
-              {{ formatFileSize(Array.isArray(job.result) ? job.result[0]!.size : job.result.size) }}
-            </span>
+            <span class="text-text-muted">{{ formatFileSize(job.file.size) }}</span>
+            <ArrowRight :size="14" class="inline mx-1 text-text-muted" />
+            <span :class="sizeChangeClass">{{ formatFileSize(resultSize) }}</span>
+            <span :class="sizeChangeClass" class="ml-1">({{ sizeChangePercent }})</span>
           </template>
           <template v-else-if="job.status === 'error'">
             <span class="text-error">Error</span>
           </template>
           <template v-else>
-            Ready
+            {{ formatFileSize(job.file.size) }}
           </template>
-        </div>
-        <div class="file-row__meta mono" :class="sizeChangeClass">
-          <span v-if="job.result">{{ sizeChangePercent }}</span>
         </div>
         <div class="file-row__meta file-row__dimensions mono text-text-muted">
-          <template v-if="job.originalDimensions && job.outputDimensions">
-            <span class="text-text-muted">{{ job.originalDimensions.width }}×{{ job.originalDimensions.height }}</span>
-            <span class="mx-1">→</span>
-            <span class="text-text-secondary">{{ job.outputDimensions.width }}×{{ job.outputDimensions.height }}</span>
+          <template v-if="dimensionsChanged">
+            <span class="text-text-muted">{{ job.originalDimensions!.width }}×{{ job.originalDimensions!.height }}</span>
+            <ArrowRight :size="12" class="inline mx-1 text-text-muted" />
+            <span class="text-text-secondary">{{ job.outputDimensions!.width }}×{{ job.outputDimensions!.height }}</span>
           </template>
-          <template v-else-if="job.originalDimensions">
-            {{ job.originalDimensions.width }}×{{ job.originalDimensions.height }}
-          </template>
-          <template v-else-if="job.outputDimensions">
-            {{ job.outputDimensions.width }}×{{ job.outputDimensions.height }}
+          <template v-else-if="job.originalDimensions || job.outputDimensions">
+            {{ (job.outputDimensions || job.originalDimensions)!.width }}×{{ (job.outputDimensions || job.originalDimensions)!.height }}
           </template>
         </div>
         <div class="file-row__actions">
@@ -90,7 +96,20 @@
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2 min-w-0 flex-1">
           <span class="status-dot flex-shrink-0" :style="statusDotStyle" />
-          <span class="mono text-sm truncate">{{ job.file.name }}</span>
+          <img
+            v-if="job.thumbnail"
+            :src="job.thumbnail"
+            :alt="job.file.name"
+            class="file-thumbnail-mobile"
+          />
+          <div class="min-w-0 flex-1">
+            <div class="mono text-sm truncate">{{ job.file.name }}</div>
+            <div v-if="formatChanged" class="file-row__format-badge">
+              {{ originalFormat?.toUpperCase() }}
+              <ArrowRight :size="10" class="inline mx-0.5" />
+              {{ targetFormat?.toUpperCase() }}
+            </div>
+          </div>
         </div>
         <div class="file-row__actions flex-shrink-0">
           <UiButton
@@ -129,23 +148,29 @@
         </div>
       </div>
 
-      <div class="flex items-center justify-between text-xs mono text-text-muted">
-        <span v-if="job.status === 'running'">{{ job.stage || 'Processing' }}</span>
-        <span v-else-if="job.status === 'completed' && job.result">
-          {{ formatFileSize(job.file.size) }} → {{ formatFileSize(Array.isArray(job.result) ? job.result[0]!.size : job.result.size) }}
-          <span :class="sizeChangeClass">({{ sizeChangePercent }})</span>
-        </span>
-        <span v-else-if="job.status === 'error'" class="text-error">{{ job.error || 'Error' }}</span>
-        <span v-else>{{ formatFileSize(job.file.size) }}</span>
+      <div class="flex items-center justify-between text-xs mono text-text-muted gap-2">
+        <div>
+          <span v-if="job.status === 'running'">{{ job.stage || 'Processing' }}</span>
+          <span v-else-if="job.status === 'completed' && job.result">
+            {{ formatFileSize(job.file.size) }}
+            <ArrowRight :size="12" class="inline mx-1" />
+            {{ formatFileSize(resultSize) }}
+            <span :class="sizeChangeClass">({{ sizeChangePercent }})</span>
+          </span>
+          <span v-else-if="job.status === 'error'" class="text-error">{{ job.error || 'Error' }}</span>
+          <span v-else>{{ formatFileSize(job.file.size) }}</span>
+        </div>
 
-        <span v-if="job.originalDimensions && job.outputDimensions" class="text-text-secondary">
-          {{ job.originalDimensions.width }}×{{ job.originalDimensions.height }}
-          →
-          {{ job.outputDimensions.width }}×{{ job.outputDimensions.height }}
-        </span>
-        <span v-else-if="job.originalDimensions" class="text-text-secondary">
-          {{ job.originalDimensions.width }}×{{ job.originalDimensions.height }}
-        </span>
+        <div v-if="dimensionsChanged || job.originalDimensions || job.outputDimensions" class="text-text-secondary">
+          <template v-if="dimensionsChanged">
+            {{ job.originalDimensions!.width }}×{{ job.originalDimensions!.height }}
+            <ArrowRight :size="10" class="inline mx-1" />
+            {{ job.outputDimensions!.width }}×{{ job.outputDimensions!.height }}
+          </template>
+          <template v-else>
+            {{ (job.outputDimensions || job.originalDimensions)!.width }}×{{ (job.outputDimensions || job.originalDimensions)!.height }}
+          </template>
+        </div>
       </div>
     </div>
 
@@ -161,7 +186,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Download, RotateCw, X, ArrowRight } from 'lucide-vue-next'
+import { Download, RotateCw, X, ArrowRight, ImageIcon } from 'lucide-vue-next'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Job } from '@/workers/types'
 import { formatFileSize } from '@/utils/format'
@@ -195,6 +220,39 @@ const sizeChangeClass = computed(() => {
   const newSize = Array.isArray(props.job.result) ? props.job.result[0]!.size : props.job.result.size
 
   return newSize < originalSize ? 'text-success' : 'text-warning'
+})
+
+const originalFormat = computed(() => {
+  const ext = props.job.file.name.split('.').pop()?.toLowerCase()
+  if (ext === 'jpg' || ext === 'jpeg') return 'jpg'
+  if (ext === 'png') return 'png'
+  if (ext === 'webp') return 'webp'
+  if (ext === 'avif') return 'avif'
+  return null
+})
+
+const targetFormat = computed(() => {
+  const opts = props.job.options as any
+  if (!opts?.to) return null
+  if (opts.to === 'original') return originalFormat.value
+  return opts.to
+})
+
+const formatChanged = computed(() => {
+  if (!originalFormat.value || !targetFormat.value) return false
+  if (targetFormat.value === 'original') return false
+  return originalFormat.value !== targetFormat.value
+})
+
+const resultSize = computed(() => {
+  if (!props.job.result) return 0
+  return Array.isArray(props.job.result) ? props.job.result[0]!.size : props.job.result.size
+})
+
+const dimensionsChanged = computed(() => {
+  if (!props.job.originalDimensions || !props.job.outputDimensions) return false
+  return props.job.originalDimensions.width !== props.job.outputDimensions.width ||
+         props.job.originalDimensions.height !== props.job.outputDimensions.height
 })
 
 const statusDotStyle = computed(() => {

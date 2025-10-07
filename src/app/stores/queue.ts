@@ -86,6 +86,14 @@ export const useQueueStore = defineStore('queue', {
     },
 
     removeJob(id: string) {
+      const job = this.jobs.find(j => j.id === id)
+      if (job?.thumbnail) {
+        try {
+          URL.revokeObjectURL(job.thumbnail)
+        } catch (e) {
+          console.warn('Failed to revoke thumbnail URL:', e)
+        }
+      }
       const index = this.jobs.findIndex(j => j.id === id)
       if (index !== -1) {
         this.jobs.splice(index, 1)
@@ -93,10 +101,28 @@ export const useQueueStore = defineStore('queue', {
     },
 
     clearCompleted() {
+      this.jobs.filter(j => j.status === 'completed').forEach(j => {
+        if (j.thumbnail) {
+          try {
+            URL.revokeObjectURL(j.thumbnail)
+          } catch (e) {
+            console.warn('Failed to revoke thumbnail URL:', e)
+          }
+        }
+      })
       this.jobs = this.jobs.filter(j => j.status !== 'completed')
     },
 
     clearAll() {
+      this.jobs.forEach(j => {
+        if (j.thumbnail) {
+          try {
+            URL.revokeObjectURL(j.thumbnail)
+          } catch (e) {
+            console.warn('Failed to revoke thumbnail URL:', e)
+          }
+        }
+      })
       this.jobs = []
     },
 

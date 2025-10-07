@@ -83,6 +83,18 @@
         </div>
         <div class="panel__body gap-6">
           <div v-if="options.to !== 'png' && options.to !== 'original'">
+            <div class="flex gap-2 mb-3">
+              <UiButton
+                v-for="preset in qualityPresets"
+                :key="preset.value"
+                @click="options.quality = preset.value"
+                :tone="Math.abs(options.quality - preset.value) < 0.01 ? 'accent' : 'default'"
+                variant="solid"
+                size="sm"
+                type="button"
+              >{{ preset.label }}</UiButton>
+            </div>
+
             <div class="flex items-center justify-between">
               <span class="body-text text-text-secondary uppercase tracking-wider">Quality</span>
               <span class="mono tracking-wide">{{ Math.round(options.quality * 100) }}%</span>
@@ -255,15 +267,16 @@ import UiButton from '@/components/ui/UiButton.vue'
 import UiPanel from '@/components/ui/UiPanel.vue'
 import { useQueueStore } from '@/app/stores/queue'
 import { useSettingsStore } from '@/app/stores/settings'
+import { useToastStore } from '@/app/stores/toast'
 import { imageWorkerPool as imageWorker } from '@/workers/workerPool'
 import { isFormatSupported, generateOutputFilename } from '@/utils/format'
-import { getImageDimensions } from '@/utils/file'
-import { downloadFile } from '@/utils/file'
+import { getImageDimensions, generateThumbnail, downloadFile } from '@/utils/file'
 import { Upload, ListX } from 'lucide-vue-next'
 import type { ImageConvertOpts, ImageFormat, Job } from '@/workers/types'
 
 const queueStore = useQueueStore()
 const settingsStore = useSettingsStore()
+const toastStore = useToastStore()
 
 type UiImageOptions = ImageConvertOpts & { quality: number; stripExif: boolean }
 
@@ -273,6 +286,12 @@ const formatOptions = [
   { value: 'jpeg' as ImageFormat, desc: 'SMALLEST' },
   { value: 'webp' as ImageFormat, desc: 'BALANCED' },
   { value: 'avif' as ImageFormat, desc: 'MODERN' }
+]
+
+const qualityPresets = [
+  { label: 'Web', value: 0.70 },
+  { label: 'Balanced', value: 0.85 },
+  { label: 'High', value: 0.95 }
 ]
 
 const options = ref<UiImageOptions & { to: ImageFormat | 'original' }>({
@@ -332,26 +351,54 @@ function detectFormatFromFile(file: File): ImageFormat {
 }
 
 async function handleFilesSelected(files: File[]) {
+  let addedCount = 0
+
   for (const file of files) {
     if (!isFormatSupported(file)) {
-      alert(`File ${file.name} is not a supported image format`)
+      toastStore.error(
+        'Unsupported Format',
+        `${file.name} is not a supported image format`
+      )
       continue
     }
 
-    // Extract original dimensions
-    const dimensions = await getImageDimensions(file)
+    if (file.size > 100 * 1024 * 1024) {
+      toastStore.warning(
+        'Large File',
+        `${file.name} is ${Math.round(file.size / 1024 / 1024)}MB. Processing may be slow.`
+      )
+    }
+
+    // Generate thumbnail and get dimensions in parallel
+    const [dimensions, thumbnail] = await Promise.all([
+      getImageDimensions(file),
+      generateThumbnail(file, 48)
+    ])
 
     queueStore.addJob({
       file,
       kind: 'image',
       status: 'idle',
-      originalDimensions: dimensions || undefined
+      originalDimensions: dimensions || undefined,
+      thumbnail: thumbnail || undefined,
+      options: toRaw(options.value)
     })
+
+    addedCount++
+  }
+
+  if (addedCount > 0) {
+    toastStore.success(
+      'Files Added',
+      `${addedCount} file${addedCount > 1 ? 's' : ''} added to queue`
+    )
   }
 }
 
 async function startConversion() {
   const pendingJobs = queueStore.pendingJobs
+  const count = pendingJobs.length
+  const startTime = performance.now()
 
   // Process all files in parallel
   await Promise.all(
@@ -383,9 +430,28 @@ async function startConversion() {
       } catch (error) {
         console.error('Conversion failed:', error)
         queueStore.setJobError(job.id, error instanceof Error ? error.message : 'Conversion failed')
+        toastStore.error(
+          'Processing Failed',
+          `Failed to process ${job.file.name}`
+        )
       }
     })
   )
+
+  const elapsed = Math.round((performance.now() - startTime) / 1000)
+  const errorCount = queueStore.errorJobs.length
+
+  if (errorCount === 0) {
+    toastStore.success(
+      'Processing Complete',
+      `${count} file${count > 1 ? 's' : ''} processed in ${elapsed}s`
+    )
+  } else if (errorCount < count) {
+    toastStore.warning(
+      'Partially Complete',
+      `${count - errorCount} succeeded, ${errorCount} failed in ${elapsed}s`
+    )
+  }
 }
 
 async function handleDownload(job: Job) {

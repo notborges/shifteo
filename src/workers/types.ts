@@ -89,6 +89,7 @@ export interface Job {
   stage?: string // e.g., "Decoding", "Resizing", "Encoding"
   error?: string
   result?: Blob | Blob[]
+  thumbnail?: string // Blob URL for image preview
   originalDimensions?: { width: number; height: number }
   outputDimensions?: { width: number; height: number }
   options?: ImageConvertOpts | DocTask

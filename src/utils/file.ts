@@ -180,3 +180,35 @@ export async function getImageDimensions(file: File): Promise<{ width: number; h
     img.src = url
   })
 }
+
+/**
+ * Generate thumbnail from image file
+ */
+export async function generateThumbnail(
+  file: File,
+  size: number = 48
+): Promise<string | null> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    const canvas = new OffscreenCanvas(size, size)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+
+    // Calculate crop to square (center crop)
+    const sourceSize = Math.min(bitmap.width, bitmap.height)
+    const sourceX = (bitmap.width - sourceSize) / 2
+    const sourceY = (bitmap.height - sourceSize) / 2
+
+    ctx.drawImage(
+      bitmap,
+      sourceX, sourceY, sourceSize, sourceSize,
+      0, 0, size, size
+    )
+
+    const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 })
+    return URL.createObjectURL(blob)
+  } catch (error) {
+    console.error('Failed to generate thumbnail:', error)
+    return null
+  }
+}

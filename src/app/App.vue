@@ -32,6 +32,7 @@
       <BottomBar />
     </div>
     <MobileNav />
+    <UiToast />
   </div>
 </template>
 
@@ -42,6 +43,7 @@ import Sidebar from '@/components/Sidebar.vue'
 import BottomBar from '@/components/BottomBar.vue'
 import MobileNav from '@/components/MobileNav.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiToast from '@/components/ui/UiToast.vue'
 import { useSettingsStore } from '@/app/stores/settings'
 import { HelpCircle, MoonStar, UserRound } from 'lucide-vue-next'
 

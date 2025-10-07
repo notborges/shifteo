@@ -4,13 +4,15 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "prebuild": "node scripts/copy-licenses.mjs",
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "licenses": "node scripts/copy-licenses.mjs"
   },
   "dependencies": {
     "@jsquash/avif": "latest",
