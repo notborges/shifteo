@@ -12,14 +12,8 @@
           Last Update {{ lastUpdated }}
         </div>
         <div class="topbar__actions">
-          <UiButton variant="solid" size="md" icon-only type="button" aria-label="Open help">
+          <UiButton variant="solid" size="md" icon-only type="button" aria-label="Help and licenses" to="/licenses">
             <HelpCircle :size="20" />
-          </UiButton>
-          <UiButton variant="solid" size="md" icon-only type="button" aria-label="Toggle theme" @click="settingsStore.toggleDarkMode()">
-            <MoonStar :size="20" />
-          </UiButton>
-          <UiButton variant="solid" size="md" icon-only type="button" aria-label="User menu">
-            <UserRound :size="20" />
           </UiButton>
         </div>
       </header>
@@ -48,7 +42,7 @@ import { useSettingsStore } from '@/app/stores/settings'
 import { useQueueStore } from '@/app/stores/queue'
 import { useToastStore } from '@/app/stores/toast'
 import { cleanupOldTempFiles, restoreQueueJobs } from '@/utils/idb'
-import { HelpCircle, MoonStar, UserRound } from 'lucide-vue-next'
+import { HelpCircle } from 'lucide-vue-next'
 
 const settingsStore = useSettingsStore()
 const queueStore = useQueueStore()
