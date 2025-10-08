@@ -450,3 +450,25 @@ async function canvasToBlob(canvas: OffscreenCanvas | HTMLCanvasElement): Promis
     canvas.toBlob(blob => resolve(blob), 'image/png')
   })
 }
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read blob'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+export async function wrapImageBlobAsSvg(blob: Blob, width: number, height: number): Promise<Blob> {
+  const dataUrl = await blobToDataUrl(blob)
+  const safeWidth = Number.isFinite(width) && width > 0 ? Math.round(width) : 1
+  const safeHeight = Number.isFinite(height) && height > 0 ? Math.round(height) : 1
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${safeWidth}" height="${safeHeight}" viewBox="0 0 ${safeWidth} ${safeHeight}">` +
+    `<image href="${dataUrl}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />` +
+    `</svg>`
+
+  return new Blob([svg], { type: 'image/svg+xml' })
+}

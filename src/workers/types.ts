@@ -3,6 +3,7 @@
 // === Image Worker Types ===
 
 export type ImageFormat = 'png' | 'jpeg' | 'webp' | 'avif' | 'bmp' | 'tiff' | 'ico'
+export type ExtendedImageFormat = ImageFormat | 'svg'
 
 export interface ImageConvertOpts {
   to: ImageFormat
@@ -93,7 +94,7 @@ export interface Job {
   thumbnail?: string // Blob URL for image preview
   originalDimensions?: { width: number; height: number }
   outputDimensions?: { width: number; height: number }
-  outputFormat?: ImageFormat // Actual format used for conversion
+  outputFormat?: ExtendedImageFormat // Actual format used for conversion
   sourcePage?: number
   options?: ImageConvertOpts | DocTask // Deprecated - kept for backwards compat, not used
   createdAt: number
@@ -104,7 +105,7 @@ export interface Job {
 
 export interface AppSettings {
   // Image defaults
-  defaultImageFormat: ImageFormat
+  defaultImageFormat: ExtendedImageFormat
   defaultImageQuality: number
   stripExifByDefault: boolean
 

@@ -185,12 +185,12 @@ import UiButton from '@/components/ui/UiButton.vue'
 import UiPanel from '@/components/ui/UiPanel.vue'
 import { formatFileSize } from '@/utils/format'
 import { Image, Sliders, Shield, Database, FileText, Type } from 'lucide-vue-next'
-import type { AppSettings, ImageFormat } from '@/workers/types'
+import type { AppSettings, ExtendedImageFormat } from '@/workers/types'
 
 const settingsStore = useSettingsStore()
 const settings = settingsStore.$state
 
-const formats: ImageFormat[] = ['png', 'jpeg', 'webp', 'avif', 'bmp', 'tiff', 'ico']
+const formats: ExtendedImageFormat[] = ['png', 'jpeg', 'webp', 'avif', 'bmp', 'tiff', 'ico', 'svg']
 const paperSizes: AppSettings['defaultPdfPaperSize'][] = ['A4', 'Letter']
 
 const storageStats = ref({

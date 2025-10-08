@@ -329,11 +329,11 @@ import { useQueueStore } from '@/app/stores/queue'
 import { useSettingsStore } from '@/app/stores/settings'
 import { useToastStore } from '@/app/stores/toast'
 import { imageWorkerPool as imageWorker } from '@/workers/workerPool'
-import { isFormatSupported, generateOutputFilename, formatFileSize, inferProcessingFormat } from '@/utils/format'
-import { getImageDimensions, generateThumbnail, downloadFile, downloadAsZip } from '@/utils/file'
+import { isFormatSupported, generateOutputFilename, formatFileSize, inferOriginalImageFormat, inferProcessingFormat } from '@/utils/format'
+import { getImageDimensions, generateThumbnail, downloadFile, downloadAsZip, wrapImageBlobAsSvg } from '@/utils/file'
 import { storeQueueJob, removeQueueJob } from '@/utils/idb'
 import { Upload, ListX } from 'lucide-vue-next'
-import type { ImageConvertOpts, ImageFormat, Job } from '@/workers/types'
+import type { ImageConvertOpts, ImageFormat, Job, ExtendedImageFormat } from '@/workers/types'
 
 const queueStore = useQueueStore()
 const settingsStore = useSettingsStore()
@@ -359,7 +359,7 @@ const dropzoneFormats = computed(() => {
   return Array.from(labels)
 })
 
-type UiImageFormat = ImageFormat | 'original'
+type UiImageFormat = ImageFormat | 'original' | 'svg'
 type UiImageOptions = Omit<ImageConvertOpts, 'to'> & {
   to: UiImageFormat
   quality: number
@@ -374,7 +374,8 @@ const formatOptions: Array<{ value: UiImageFormat; desc: string }> = [
   { value: 'avif' as ImageFormat, desc: 'MODERN' },
   { value: 'bmp' as ImageFormat, desc: 'LEGACY' },
   { value: 'tiff' as ImageFormat, desc: 'ARCHIVAL' },
-  { value: 'ico' as ImageFormat, desc: 'ICON' }
+  { value: 'ico' as ImageFormat, desc: 'ICON' },
+  { value: 'svg', desc: 'VECTOR' }
 ]
 
 const qualityPresets = [
@@ -391,10 +392,11 @@ const formatHints: Record<string, string> = {
   avif: 'Best compression - Slower encoding, newer format',
   bmp: 'Legacy - 32-bit bitmap for compatibility with older systems',
   tiff: 'Archival - Lossless, high bit depth support (larger files)',
-  ico: 'Icon - Windows-compatible favicon container'
+  ico: 'Icon - Windows-compatible favicon container',
+  svg: 'Vector - Embeds raster data inside an SVG wrapper'
 }
 
-const losslessFormats = new Set<UiImageFormat>(['png', 'bmp', 'tiff', 'ico'])
+const losslessFormats = new Set<UiImageFormat>(['png', 'bmp', 'tiff', 'ico', 'svg'])
 const showQualitySlider = computed(() => {
   const target = options.value.to
   return target !== 'original' && !losslessFormats.has(target)
@@ -566,9 +568,17 @@ watch(
   }
 )
 
-function getJobTargetFormat(job: Job): ImageFormat {
-  // Use the actual output format from conversion, or fall back to detecting from original file
-  return job.outputFormat || inferProcessingFormat(job.file)
+function getJobTargetFormat(job: Job): ExtendedImageFormat {
+  if (job.outputFormat) {
+    return job.outputFormat
+  }
+
+  const originalFormat = inferOriginalImageFormat(job.file)
+  if (originalFormat) {
+    return originalFormat === 'svg' ? 'svg' : originalFormat
+  }
+
+  return inferProcessingFormat(job.file)
 }
 
 async function convertSVGToPNG(file: File, targetSize: number): Promise<Blob> {
@@ -772,14 +782,41 @@ async function startConversion() {
       try {
         queueStore.updateJobStatus(job.id, 'running')
 
-        const targetFormat = options.value.to === 'original'
-          ? inferProcessingFormat(job.file)
-          : options.value.to
+        const originalFormat = inferOriginalImageFormat(job.file)
+        const requestedFormat = options.value.to
+        const desiredFormat: UiImageFormat = requestedFormat === 'original'
+          ? (originalFormat ?? inferProcessingFormat(job.file))
+          : requestedFormat
+
+        const needsSvgOutput = desiredFormat === 'svg'
+        const workerFormat: ImageFormat = needsSvgOutput ? 'png' : desiredFormat as ImageFormat
+        const needsResize = Boolean(
+          options.value.scale ||
+          options.value.width ||
+          options.value.height ||
+          options.value.longEdge
+        )
+        const isSvgSource = originalFormat === 'svg'
+
+        queueStore.updateJob(job.id, {
+          outputFormat: (needsSvgOutput ? 'svg' : workerFormat) as ExtendedImageFormat,
+          outputDimensions: undefined
+        })
+
+        if (needsSvgOutput && isSvgSource && !needsResize) {
+          // Preserve original SVG when no raster processing is required
+          queueStore.setJobResult(job.id, job.file)
+          queueStore.updateJob(job.id, {
+            outputDimensions: job.originalDimensions ?? undefined,
+            outputFormat: 'svg' as ExtendedImageFormat
+          })
+          return
+        }
 
         let fileToProcess = job.file
 
         // Pre-process SVG files (convert to PNG in main thread)
-        if (job.file.name.toLowerCase().endsWith('.svg')) {
+        if (isSvgSource) {
           queueStore.updateJobStage(job.id, 'Rendering SVG...')
 
           const size = options.value.longEdge || options.value.width || options.value.height || 1000
@@ -790,16 +827,11 @@ async function startConversion() {
           })
         }
 
-        queueStore.updateJob(job.id, {
-          outputFormat: targetFormat,
-          outputDimensions: undefined
-        })
-
         const result = await imageWorker.convert(
           fileToProcess,
           {
             ...toRaw(options.value),
-            to: targetFormat
+            to: workerFormat
           },
           (progress) => {
             queueStore.updateJobProgress(job.id, progress)
@@ -808,10 +840,19 @@ async function startConversion() {
             queueStore.updateJobStage(job.id, stage)
           }
         )
-        queueStore.setJobResult(job.id, result.blob)
+
+        let finalBlob: Blob = result.blob
+        let finalFormat: ExtendedImageFormat = workerFormat
+
+        if (needsSvgOutput) {
+          finalBlob = await wrapImageBlobAsSvg(result.blob, result.width, result.height)
+          finalFormat = 'svg'
+        }
+
+        queueStore.setJobResult(job.id, finalBlob)
         queueStore.updateJob(job.id, {
           outputDimensions: { width: result.width, height: result.height },
-          outputFormat: targetFormat  // Save actual format used
+          outputFormat: finalFormat
         })
       } catch (error) {
         console.error('Conversion failed:', error)
