@@ -38,11 +38,14 @@ export type DocTask =
   | { kind: 'html_to_pdf'; options?: { margin?: number; page?: 'A4' | 'Letter' } }
   | { kind: 'pdf_to_images'; dpi?: number; pageRange?: { start: number; end: number } }
   | { kind: 'pdf_merge' }
-  | { kind: 'pdf_split'; pages: number[] }
+  | { kind: 'pdf_split'; pages: number[]; mode?: 'single' | 'individual' }
+  | { kind: 'pdf_compress'; preset?: 'light' | 'balanced' | 'small' }
 
 export interface DocConvertResult {
-  blob: Blob | Blob[]
+  blob?: Blob | Blob[]
   pageCount?: number
+  filename?: string
+  files?: Array<{ blob: Blob; filename: string }>
 }
 
 // === Base Worker Interface ===

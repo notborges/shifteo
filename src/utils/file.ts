@@ -44,20 +44,69 @@ export async function downloadFile(blob: Blob, filename: string): Promise<void> 
   }
 
   // Fallback: traditional download link
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.style.display = 'none'
+  const navigatorAny = window.navigator as typeof window.navigator & {
+    msSaveOrOpenBlob?: (blob: Blob, defaultName?: string) => void
+  }
 
-  document.body.appendChild(a)
-  a.click()
+  const downloadBlob = blob.type === 'application/pdf'
+    ? new Blob([blob], { type: 'application/octet-stream' })
+    : blob
 
-  // Cleanup
-  setTimeout(() => {
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }, 100)
+  if (typeof navigatorAny.msSaveOrOpenBlob === 'function') {
+    navigatorAny.msSaveOrOpenBlob(downloadBlob, filename)
+    return
+  }
+
+  const anchor = document.createElementNS('http://www.w3.org/1999/xhtml', 'a') as HTMLAnchorElement
+  const supportsDownloadAttr = typeof anchor.download !== 'undefined'
+  const isMacOSWebView = typeof navigator !== 'undefined'
+    && /Macintosh/.test(navigator.userAgent)
+    && /AppleWebKit/.test(navigator.userAgent)
+    && !/Safari/.test(navigator.userAgent)
+
+  const URLObject = window.URL || (window as any).webkitURL
+
+  if (supportsDownloadAttr && !isMacOSWebView && URLObject?.createObjectURL) {
+    const objectUrl = URLObject.createObjectURL(downloadBlob)
+    anchor.href = objectUrl
+    anchor.download = filename
+    anchor.rel = 'noopener'
+    const clickAnchor = () => {
+      try {
+        anchor.dispatchEvent(new MouseEvent('click'))
+      } catch (error) {
+        const evt = document.createEvent('MouseEvents')
+        evt.initMouseEvent('click', true, true, window, 0, 0, 0, 0, 0,
+          false, false, false, false, 0, null)
+        anchor.dispatchEvent(evt)
+      }
+    }
+    setTimeout(clickAnchor, 0)
+    setTimeout(() => {
+      URLObject.revokeObjectURL(objectUrl)
+    }, 40_000)
+    return
+  }
+
+  // Safari and older browsers fallback: convert to data URL
+  await new Promise<void>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read blob'))
+    reader.onloadend = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      if (!result) {
+        reject(new Error('Failed to generate download URL'))
+        return
+      }
+      const url = result.replace(/^data:[^;]*/, 'data:attachment/file')
+      const popup = window.open(url, '_blank')
+      if (!popup) {
+        window.location.href = url
+      }
+      resolve()
+    }
+    reader.readAsDataURL(downloadBlob)
+  })
 }
 
 /**
