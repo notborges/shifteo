@@ -33,19 +33,68 @@ export interface ProgressUpdate {
 
 // === Document Worker Types ===
 
+export interface PdfCompressionOptions {
+  imageQuality?: number // 0..1
+  maxImageDimension?: number // px
+  coordinatePrecision?: number // decimal places to retain in content streams
+  pruneFonts?: boolean
+  recompressStreams?: boolean
+}
+
+export interface PdfImageChange {
+  name?: string
+  before: { width: number; height: number; bytes: number }
+  after: { width: number; height: number; bytes: number }
+  savedBytes: number
+}
+
+export interface PdfStreamChange {
+  ref: string
+  savedBytes: number
+}
+
+export interface PdfCompressionDetails {
+  metadataKeysRemoved: string[]
+  fontsRemoved: string[]
+  imageChanges: PdfImageChange[]
+  streamChanges: PdfStreamChange[]
+  imageBytesSaved: number
+  streamBytesSaved: number
+}
+
+export interface PdfCompressionStats {
+  originalBytes: number
+  compressedBytes: number
+  fontsRemoved: number
+  streamsRecompressed: number
+  imagesDownscaled: number
+  rasterFallbackUsed: boolean
+  preset: 'light' | 'balanced' | 'small'
+  options: Required<PdfCompressionOptions>
+  details: PdfCompressionDetails
+}
+
+export interface PdfOrganizeTask {
+  kind: 'pdf_organize'
+  order?: number[]
+  rotations?: Record<number, number>
+}
+
 export type DocTask =
   | { kind: 'docx_to_html' }
   | { kind: 'html_to_pdf'; options?: { margin?: number; page?: 'A4' | 'Letter' } }
   | { kind: 'pdf_to_images'; dpi?: number; pageRange?: { start: number; end: number } }
   | { kind: 'pdf_merge' }
   | { kind: 'pdf_split'; pages: number[]; mode?: 'single' | 'individual' }
-  | { kind: 'pdf_compress'; preset?: 'light' | 'balanced' | 'small' }
+  | { kind: 'pdf_compress'; preset?: 'light' | 'balanced' | 'small'; options?: PdfCompressionOptions }
+  | PdfOrganizeTask
 
 export interface DocConvertResult {
   blob?: Blob | Blob[]
   pageCount?: number
   filename?: string
   files?: Array<{ blob: Blob; filename: string }>
+  stats?: PdfCompressionStats
 }
 
 // === Base Worker Interface ===

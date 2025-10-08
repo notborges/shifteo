@@ -308,6 +308,154 @@
       <UiPanel class="col-span-12">
         <template #header>
           <div class="flex items-center gap-2">
+            <Grid3x3 :size="16" />
+            <span>Organize Pages (beta)</span>
+          </div>
+          <span class="panel__meta">Reorder, rotate, or remove pages before exporting</span>
+        </template>
+
+        <div class="space-y-6">
+          <div class="flex flex-wrap items-center gap-3">
+            <UiButton type="button" size="sm" :disabled="isOrganizing" @click="triggerOrganizeFileDialog">
+              Choose PDF
+            </UiButton>
+            <UiButton
+              type="button"
+              size="sm"
+              variant="quiet"
+              tone="warning"
+              :disabled="!organizeFile || isOrganizing"
+              @click="resetOrganize"
+            >
+              Reset
+            </UiButton>
+            <span v-if="organizeFile" class="body-text text-text-muted">
+              {{ organizeFile.name }} · {{ formatFileSize(organizeFile.size) }}
+            </span>
+            <span v-if="organizeLastOutputName" class="body-text text-text-secondary">Last output: {{ organizeLastOutputName }}</span>
+          </div>
+
+          <p class="body-text text-text-muted text-sm">
+            Drag thumbnails to reorder pages. Rotate or remove any page before exporting the new PDF.
+          </p>
+
+          <input
+            ref="organizeInputRef"
+            type="file"
+            accept="application/pdf"
+            class="hidden"
+            @change="handleOrganizeFileChange"
+          />
+
+          <div
+            v-if="organizePages.length > 0"
+            ref="organizePagesContainer"
+            class="organize-grid"
+          >
+            <article
+              v-for="(page, index) in organizePages"
+              :key="page.id"
+              class="organize-card"
+              :class="{
+                'organize-card--removed': page.removed,
+                'organize-card--dragging': organizeDragSourceId === page.id,
+                'organize-card--over': organizeDragOverId === page.id
+              }"
+              :draggable="!page.loading && !isOrganizing"
+              @dragstart="handleOrganizeDragStart($event, page.id)"
+              @dragover="handleOrganizeDragOver($event, page.id)"
+              @dragenter="handleOrganizeDragEnter($event, page.id)"
+              @dragleave="handleOrganizeDragLeave($event, page.id)"
+              @drop="handleOrganizeDrop($event, page.id)"
+              @dragend="handleOrganizeDragEnd"
+              :aria-grabbed="organizeDragSourceId === page.id"
+              :aria-label="`Page ${index + 1}`"
+              :ref="el => registerOrganizeCard(el, page.originalIndex)"
+            >
+              <header class="organize-card__header">
+                <span class="organize-card__index">{{ index + 1 }}</span>
+                <span class="organize-card__meta">Page {{ page.originalIndex }}</span>
+              </header>
+              <div class="organize-card__thumb" aria-hidden="true">
+                <div v-if="page.loading" class="organize-card__thumb-placeholder">Loading…</div>
+                <div v-else-if="page.thumbnail" class="organize-card__thumb-inner" :style="organizeRotationStyle(page)">
+                  <img :src="page.thumbnail" alt="" />
+                </div>
+                <div v-else class="organize-card__thumb-placeholder">No preview</div>
+                <div v-if="page.removed" class="organize-card__removed-banner">Removed</div>
+              </div>
+              <footer class="organize-card__actions">
+                <UiButton
+                  type="button"
+                  size="sm"
+                  variant="quiet"
+                  icon-only
+                  :disabled="page.loading || isOrganizing"
+                  @click="rotateOrganizePage(page.id, 'left')"
+                  title="Rotate counter-clockwise"
+                >
+                  <RotateCcw :size="16" />
+                </UiButton>
+                <UiButton
+                  type="button"
+                  size="sm"
+                  variant="quiet"
+                  icon-only
+                  :disabled="page.loading || isOrganizing"
+                  @click="rotateOrganizePage(page.id, 'right')"
+                  title="Rotate clockwise"
+                >
+                  <RotateCw :size="16" />
+                </UiButton>
+                <UiButton
+                  type="button"
+                  size="sm"
+                  variant="quiet"
+                  icon-only
+                  :tone="page.removed ? 'success' : 'warning'"
+                  :disabled="isOrganizing"
+                  @click="toggleOrganizePageRemoved(page.id)"
+                  :title="page.removed ? 'Restore page' : 'Remove page'"
+                >
+                  <Undo2 v-if="page.removed" :size="16" />
+                  <Trash2 v-else :size="16" />
+                </UiButton>
+              </footer>
+              <div class="organize-card__rotation" v-if="page.rotation !== 0">
+                Rotated {{ page.rotation }}°
+              </div>
+            </article>
+          </div>
+
+          <div v-else class="organize-empty">
+            <p class="body-text text-text-muted">Choose a PDF to start organising its pages.</p>
+          </div>
+
+          <div v-if="isOrganizing" class="organize-progress">
+            <div class="organize-progress__bar">
+              <div class="organize-progress__fill" :style="{ width: `${Math.round(organizeProgress * 100)}%` }" />
+            </div>
+            <div class="organize-progress__label">
+              {{ organizeStage || 'Preparing...' }}
+              <span v-if="organizeProgress > 0"> · {{ Math.round(organizeProgress * 100) }}%</span>
+            </div>
+          </div>
+
+          <UiButton
+            type="button"
+            size="md"
+            tone="accent"
+            :disabled="!organizeCanExport"
+            @click="startOrganize"
+          >
+            Export Organised PDF
+          </UiButton>
+        </div>
+      </UiPanel>
+
+      <UiPanel class="col-span-12">
+        <template #header>
+          <div class="flex items-center gap-2">
             <Gauge :size="16" />
             <span>Compress PDF (alpha)</span>
           </div>
@@ -340,12 +488,39 @@
             </span>
           </div>
 
-          <p class="body-text text-text-muted text-sm">
-            All compression runs locally in your browser worker—drop in a PDF, select a preset, and download the optimised result.
-          </p>
-          <p class="text-xs text-text-secondary">
-            Light and Balanced keep vector text intact by compressing embedded images; Smallest falls back to rasterising pages when necessary.
-          </p>
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p class="body-text text-text-muted text-sm">
+                All compression runs locally in your browser worker—drop in a PDF, select a preset, and download the optimised result.
+              </p>
+              <p class="text-xs text-text-secondary">
+                Light and Balanced keep vector text intact by compressing embedded images; Smallest falls back to rasterising pages when necessary.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <UiButton
+                type="button"
+                size="sm"
+                variant="quiet"
+                class="compress-advanced__toggle-btn"
+                @click="toggleCompressAdvanced"
+              >
+                {{ compressAdvancedOpen ? 'Hide advanced controls' : 'Advanced controls' }}
+              </UiButton>
+              <UiButton
+                v-if="false"
+                type="button"
+                size="sm"
+                variant="quiet"
+                class="compress-advanced__toggle-btn"
+                :disabled="!canOpenPreview"
+                @click="openCompressPreview"
+              >
+                <Eye :size="16" />
+                <span>Compare preview</span>
+              </UiButton>
+            </div>
+          </div>
 
           <input
             ref="compressInputRef"
@@ -354,6 +529,113 @@
             class="hidden"
             @change="handleCompressFileChange"
           />
+
+          <div v-if="compressAdvancedOpen" class="compress-advanced">
+            <div class="compress-advanced__row">
+              <div class="compress-advanced__label">
+                <span class="body-text text-text-secondary uppercase tracking-wider">Image Quality</span>
+                <span class="mono">{{ Math.round(compressOptions.imageQuality * 100) }}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="1"
+                step="0.01"
+                v-model.number="compressOptions.imageQuality"
+                @input="markCompressAdvancedDirty"
+                class="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--color-line-hair)]
+                       [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none
+                       [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--color-bg-canvas)]
+                       [&::-webkit-slider-thumb]:bg-[var(--color-acc-error)] [&::-webkit-slider-thumb]:transition-shadow
+                       [&::-webkit-slider-thumb]:hover:shadow-glow
+                       [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-acc-error)]"
+                title="Adjust JPEG recompression quality"
+              />
+            </div>
+
+            <div class="compress-advanced__row">
+              <div class="compress-advanced__label">
+                <span class="body-text text-text-secondary uppercase tracking-wider">Max Image Dimension</span>
+                <span class="mono">{{ Math.round(compressOptions.maxImageDimension) }} px</span>
+              </div>
+              <input
+                type="range"
+                min="800"
+                max="3200"
+                step="10"
+                v-model.number="compressOptions.maxImageDimension"
+                @input="markCompressAdvancedDirty"
+                class="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--color-line-hair)]
+                       [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none
+                       [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--color-bg-canvas)]
+                       [&::-webkit-slider-thumb]:bg-[var(--color-acc-error)] [&::-webkit-slider-thumb]:transition-shadow
+                       [&::-webkit-slider-thumb]:hover:shadow-glow
+                       [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-acc-error)]"
+                title="Clamp embedded image dimensions to control resolution"
+              />
+            </div>
+
+            <div class="compress-advanced__row">
+              <div class="compress-advanced__label">
+                <span class="body-text text-text-secondary uppercase tracking-wider">Coordinate Precision</span>
+                <span class="mono">{{ compressOptions.coordinatePrecision }} decimals</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="3"
+                step="1"
+                v-model.number="compressOptions.coordinatePrecision"
+                @input="markCompressAdvancedDirty"
+                class="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--color-line-hair)]
+                       [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none
+                       [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--color-bg-canvas)]
+                       [&::-webkit-slider-thumb]:bg-[var(--color-acc-error)] [&::-webkit-slider-thumb]:transition-shadow
+                       [&::-webkit-slider-thumb]:hover:shadow-glow
+                       [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-acc-error)]"
+                title="Trim vector coordinate decimals to shrink streams"
+              />
+            </div>
+
+            <div class="compress-advanced__toggles">
+              <label class="compress-advanced__checkbox">
+                <span class="checkbox">
+                  <input
+                    type="checkbox"
+                    v-model="compressOptions.pruneFonts"
+                    @change="markCompressAdvancedDirty"
+                    title="Remove unused font definitions to trim file size"
+                  />
+                  <span class="checkbox__mark" />
+                </span>
+                Prune unused fonts
+              </label>
+              <label class="compress-advanced__checkbox">
+                <span class="checkbox">
+                  <input
+                    type="checkbox"
+                    v-model="compressOptions.recompressStreams"
+                    @change="markCompressAdvancedDirty"
+                    title="Recompress text drawing commands for leaner streams"
+                  />
+                  <span class="checkbox__mark" />
+                </span>
+                Recompress text streams
+              </label>
+            </div>
+
+            <div class="compress-advanced__foot">
+              <span class="text-xs text-text-muted">Tweaks apply on top of the selected preset.</span>
+              <UiButton
+                type="button"
+                size="sm"
+                variant="quiet"
+                class="compress-advanced__toggle-btn"
+                :disabled="!compressAdvancedDirty"
+                @click="resetCompressAdvanced"
+              >Reset to preset defaults</UiButton>
+            </div>
+          </div>
 
           <div v-if="compressFile" class="compress-presets">
             <button
@@ -389,6 +671,74 @@
           >
             Compress & Download
           </UiButton>
+
+          <div v-if="compressReport" class="compress-report">
+            <div class="compress-report__header">
+              <div>
+                <span class="compress-report__label">Original</span>
+                <span class="compress-report__value">{{ formatFileSize(compressReport.originalBytes) }}</span>
+              </div>
+              <div>
+                <span class="compress-report__label">Output</span>
+                <span class="compress-report__value">{{ formatFileSize(compressReport.compressedBytes) }}</span>
+              </div>
+              <div>
+                <span class="compress-report__label">Saved</span>
+                <span class="compress-report__value">
+                  {{ compressSavings ? formatFileSize(compressSavings.savedBytes) : '0 B' }}
+                  <span v-if="compressSavings" class="text-text-secondary">({{ compressSavings.percent }})</span>
+                </span>
+              </div>
+            </div>
+            <div class="compress-report__grid">
+              <span><strong>{{ compressReport.fontsRemoved }}</strong> fonts removed</span>
+              <span><strong>{{ compressReport.imagesDownscaled }}</strong> images downscaled</span>
+              <span
+                class="compress-report__badge"
+                :class="{ 'compress-report__badge--warning': compressReport.rasterFallbackUsed }"
+              >
+                {{ compressReport.rasterFallbackUsed ? 'Raster fallback used' : 'Vectors preserved' }}
+              </span>
+            </div>
+            <div class="compress-report__options">
+              <span class="compress-report__option">Quality {{ Math.round(compressReport.options.imageQuality * 100) }}%</span>
+              <span class="compress-report__option">Max image {{ compressReport.options.maxImageDimension }}px</span>
+              <span class="compress-report__option">Precision {{ compressReport.options.coordinatePrecision }} dec.</span>
+              <span class="compress-report__option">{{ compressReport.options.pruneFonts ? 'Fonts pruned' : 'Fonts preserved' }}</span>
+            </div>
+            <div v-if="hasCompressionDetails" class="compress-report__details">
+              <section v-if="compressMetadataRemoved.length" class="compress-report__group">
+                <h4 class="compress-report__group-title">Metadata removed</h4>
+                <ul>
+                  <li v-for="(item, index) in compressMetadataRemoved" :key="`${item}-${index}`">{{ item }}</li>
+                </ul>
+              </section>
+              <section v-if="compressFontsRemovedList.length" class="compress-report__group">
+                <h4 class="compress-report__group-title">Fonts removed</h4>
+                <ul>
+                  <li v-for="(item, index) in compressFontsRemovedList" :key="`${item}-${index}`">{{ item }}</li>
+                </ul>
+              </section>
+              <section v-if="compressImageHighlights.length" class="compress-report__group">
+                <header class="compress-report__group-meta">
+                  <h4 class="compress-report__group-title">Images optimised</h4>
+                  <span class="compress-report__group-saved">Saved {{ compressImageBytesSavedLabel }}</span>
+                </header>
+                <ul>
+                  <li
+                    v-for="(change, index) in compressImageHighlights"
+                    :key="`${change.name ?? 'image'}-${index}`"
+                  >
+                    <span class="compress-report__detail-name">{{ change.name ?? `Image ${index + 1}` }}</span>
+                    <span class="compress-report__detail-meta">
+                      {{ change.before.width }}×{{ change.before.height }} → {{ change.after.width }}×{{ change.after.height }}
+                    </span>
+                    <span class="compress-report__detail-saved">Saved {{ formatFileSize(change.savedBytes) }}</span>
+                  </li>
+                </ul>
+              </section>
+            </div>
+          </div>
         </div>
       </UiPanel>
 
@@ -415,17 +765,27 @@
       </UiPanel>
     </div>
   </div>
+
+  <ImagePreviewModal
+    :job="compressPreviewJob"
+    :isOpen="compressPreviewModalOpen"
+    @close="closeCompressPreview"
+    @download="handleCompressPreviewDownload"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiPanel from '@/components/ui/UiPanel.vue'
 import { useToastStore } from '@/app/stores/toast'
 import { pdfWorkerPool } from '@/workers/pdfWorkerPool'
 import { downloadAsZip, downloadFile, generateFileId } from '@/utils/file'
 import { formatFileSize } from '@/utils/format'
-import { FileText, Upload, ArrowUp, ArrowDown, Trash2, Scissors, Gauge } from 'lucide-vue-next'
+import { FileText, Upload, ArrowUp, ArrowDown, Trash2, Scissors, Gauge, Eye, Grid3x3, RotateCcw, RotateCw, Undo2 } from 'lucide-vue-next'
+import ImagePreviewModal from '@/components/ImagePreviewModal.vue'
+import type { Job, PdfCompressionStats } from '@/workers/types'
 
 interface OperationCard {
   key: string
@@ -443,25 +803,40 @@ interface MergeItem {
   loading: boolean
 }
 
+interface OrganizePage {
+  id: number
+  originalIndex: number
+  rotation: number
+  removed: boolean
+  thumbnail: string | null
+  loading: boolean
+}
+
 const compressPresets = [
   {
     key: 'light',
     label: 'Light',
-    helper: 'Trim metadata and gently resample oversized images.'
+    helper: 'Keep text sharp while trimming metadata and gently resampling images.'
   },
   {
     key: 'balanced',
     label: 'Balanced',
-    helper: 'Smaller file, text intact, image downscale at ~150 dpi.'
+    helper: 'Downscale images to ~150 dpi and preserve vectors for viewing and print.'
   },
   {
     key: 'small',
     label: 'Smallest',
-    helper: 'Best for uploads—resample images harder, keep vectors when possible.'
+    helper: 'Aggressive image crunching with raster fallback when stubborn pages resist.'
   }
 ] as const
 
 type CompressPresetKey = typeof compressPresets[number]['key']
+
+const compressPresetDefaults: Record<CompressPresetKey, { imageQuality: number; maxImageDimension: number; coordinatePrecision: number }> = {
+  light: { imageQuality: 0.94, maxImageDimension: 2600, coordinatePrecision: 3 },
+  balanced: { imageQuality: 0.9, maxImageDimension: 2100, coordinatePrecision: 3 },
+  small: { imageQuality: 0.75, maxImageDimension: 1400, coordinatePrecision: 2 }
+}
 
 const toastStore = useToastStore()
 
@@ -533,6 +908,144 @@ const compressStage = ref('')
 const compressProgress = ref(0)
 const compressStats = ref<{ original: number; result: number } | null>(null)
 const lastCompressedName = ref<string | null>(null)
+const compressAdvancedOpen = ref(false)
+const compressAdvancedDirty = ref(false)
+const compressOptions = reactive({
+  imageQuality: compressPresetDefaults.light.imageQuality,
+  maxImageDimension: compressPresetDefaults.light.maxImageDimension,
+  coordinatePrecision: compressPresetDefaults.light.coordinatePrecision,
+  pruneFonts: true,
+  recompressStreams: true
+})
+const compressReport = ref<PdfCompressionStats | null>(null)
+const compressPreviewOriginalBlob = ref<Blob | null>(null)
+const compressPreviewCompressedBlob = ref<Blob | null>(null)
+const compressPreviewLoadingOriginal = ref(false)
+const compressPreviewLoadingCompressed = ref(false)
+const compressPreviewModalOpen = ref(false)
+let compressPreviewOriginalRequest = 0
+let compressPreviewCompressedRequest = 0
+const compressResultBlob = ref<Blob | null>(null)
+
+const organizeFile = ref<File | null>(null)
+const organizeInputRef = ref<HTMLInputElement | null>(null)
+const organizeStage = ref('')
+const organizeProgress = ref(0)
+const isOrganizing = ref(false)
+const organizePages = ref<OrganizePage[]>([])
+const organizeLastOutputName = ref<string | null>(null)
+const organizePagesContainer = ref<HTMLDivElement | null>(null)
+const organizePdfDoc = shallowRef<any | null>(null)
+const organizeObserver = shallowRef<IntersectionObserver | null>(null)
+const organizeObservedElements = new Map<number, HTMLElement>()
+const organizeThumbnailPromises = new Map<number, Promise<void>>()
+const organizeDragSourceId = ref<number | null>(null)
+const organizeDragOverId = ref<number | null>(null)
+
+interface StoredCompressAdvancedOptions {
+  imageQuality: number
+  maxImageDimension: number
+  coordinatePrecision: number
+  pruneFonts: boolean
+  recompressStreams: boolean
+}
+
+const COMPRESS_ADVANCED_STORAGE_KEY = 'shifteo:compress-advanced-v1'
+let storedAdvancedOptions: Partial<Record<CompressPresetKey, StoredCompressAdvancedOptions>> = {}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function normalizeStoredAdvancedOptions(value: unknown): StoredCompressAdvancedOptions | null {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Record<string, unknown>
+  const quality = typeof record.imageQuality === 'number' ? clampNumber(record.imageQuality, 0.5, 1) : null
+  const dimension = typeof record.maxImageDimension === 'number' ? clampNumber(record.maxImageDimension, 800, 4000) : null
+  const precision = typeof record.coordinatePrecision === 'number' ? clampNumber(Math.round(record.coordinatePrecision), 0, 4) : null
+  const pruneFonts = typeof record.pruneFonts === 'boolean' ? record.pruneFonts : null
+  const recompressStreams = typeof record.recompressStreams === 'boolean' ? record.recompressStreams : null
+
+  if (quality === null || dimension === null || precision === null || pruneFonts === null || recompressStreams === null) {
+    return null
+  }
+
+  return {
+    imageQuality: quality,
+    maxImageDimension: dimension,
+    coordinatePrecision: precision,
+    pruneFonts,
+    recompressStreams
+  }
+}
+
+function writeStoredAdvancedOptions() {
+  if (typeof window === 'undefined') return
+  try {
+    const payload = JSON.stringify(storedAdvancedOptions)
+    window.localStorage.setItem(COMPRESS_ADVANCED_STORAGE_KEY, payload)
+  } catch (error) {
+    console.warn('Failed to persist advanced controls', error)
+  }
+}
+
+function loadStoredAdvancedOptions() {
+  if (typeof window === 'undefined') return
+  try {
+    const raw = window.localStorage.getItem(COMPRESS_ADVANCED_STORAGE_KEY)
+    if (!raw) {
+      storedAdvancedOptions = {}
+      return
+    }
+
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const next: Partial<Record<CompressPresetKey, StoredCompressAdvancedOptions>> = {}
+    for (const preset of compressPresets.map(item => item.key) as CompressPresetKey[]) {
+      const candidate = normalizeStoredAdvancedOptions(parsed[preset])
+      if (candidate) {
+        next[preset] = candidate
+      }
+    }
+    storedAdvancedOptions = next
+  } catch (error) {
+    console.warn('Failed to load advanced controls', error)
+    storedAdvancedOptions = {}
+  }
+}
+
+function persistAdvancedOptions() {
+  if (typeof window === 'undefined') return
+  const preset = compressPreset.value
+  const stored: StoredCompressAdvancedOptions = {
+    imageQuality: clampNumber(Number.parseFloat(compressOptions.imageQuality.toFixed(3)), 0.5, 1),
+    maxImageDimension: clampNumber(Math.round(compressOptions.maxImageDimension), 800, 4000),
+    coordinatePrecision: clampNumber(Math.round(compressOptions.coordinatePrecision), 0, 4),
+    pruneFonts: Boolean(compressOptions.pruneFonts),
+    recompressStreams: Boolean(compressOptions.recompressStreams)
+  }
+  storedAdvancedOptions = {
+    ...storedAdvancedOptions,
+    [preset]: stored
+  }
+  writeStoredAdvancedOptions()
+}
+
+function removeAdvancedOptionsForPreset(preset: CompressPresetKey) {
+  if (!(preset in storedAdvancedOptions)) return
+  const next = { ...storedAdvancedOptions }
+  delete next[preset]
+  storedAdvancedOptions = next
+  writeStoredAdvancedOptions()
+}
+
+onMounted(() => {
+  loadStoredAdvancedOptions()
+  const appliedStored = applyPresetDefaults(compressPreset.value)
+  if (appliedStored) {
+    compressAdvancedDirty.value = true
+    persistAdvancedOptions()
+  }
+})
 
 const splitFile = ref<File | null>(null)
 const splitThumbnail = ref<string | null>(null)
@@ -556,8 +1069,83 @@ const hasFiles = computed(() => mergeFiles.value.length > 0)
 const canMerge = computed(() => mergeFiles.value.length >= 2 && !isMerging.value)
 const totalSize = computed(() => mergeFiles.value.reduce((sum, item) => sum + item.file.size, 0))
 const canCompress = computed(() => compressFile.value !== null && !isCompressing.value)
+const compressOriginalBytes = computed(() => {
+  if (compressReport.value) return compressReport.value.originalBytes
+  const file = compressFile.value
+  return file ? file.size : 0
+})
+const compressCompressedBytes = computed(() => {
+  if (compressReport.value) return compressReport.value.compressedBytes
+  const stats = compressStats.value
+  return stats ? stats.result : 0
+})
+const compressOriginalSizeLabel = computed(() => {
+  const value = compressOriginalBytes.value
+  return value > 0 ? formatFileSize(value) : '—'
+})
+const compressCompressedSizeLabel = computed(() => {
+  const value = compressCompressedBytes.value
+  return value > 0 ? formatFileSize(value) : '—'
+})
+const canOpenPreview = computed(() => Boolean(
+  compressPreviewOriginalBlob.value &&
+  compressPreviewCompressedBlob.value &&
+  !compressPreviewLoadingOriginal.value &&
+  !compressPreviewLoadingCompressed.value &&
+  !isCompressing.value
+))
+const compressMetadataRemoved = computed(() => compressReport.value?.details.metadataKeysRemoved ?? [])
+const compressFontsRemovedList = computed(() => compressReport.value?.details.fontsRemoved ?? [])
+const compressImageHighlights = computed(() => {
+  const items = compressReport.value?.details.imageChanges ?? []
+  return items.slice(0, 4)
+})
+const compressImageBytesSavedLabel = computed(() => {
+  const value = compressReport.value?.details.imageBytesSaved ?? 0
+  return value > 0 ? formatFileSize(value) : '—'
+})
+const hasCompressionDetails = computed(() =>
+  compressMetadataRemoved.value.length > 0
+  || compressFontsRemovedList.value.length > 0
+  || compressImageHighlights.value.length > 0
+)
+const compressPreviewJob = computed<Job | null>(() => {
+  const originalBlob = compressPreviewOriginalBlob.value
+  const compressedBlob = compressPreviewCompressedBlob.value
+  const file = compressFile.value
+  if (!originalBlob || !compressedBlob || !file) return null
+
+  const baseName = file.name.replace(/\.pdf$/i, '')
+  const beforeFile = new File([originalBlob], `${baseName}-before.png`, { type: 'image/png' })
+  const afterFile = new File([compressedBlob], `${baseName}-after.png`, { type: 'image/png' })
+  const now = Date.now()
+
+  return {
+    id: `compress-preview-${baseName}`,
+    file: beforeFile,
+    kind: 'document',
+    status: 'completed',
+    progress: 1,
+    stage: 'Preview',
+    result: afterFile,
+    outputFormat: 'png',
+    createdAt: now,
+    completedAt: now,
+    sourcePage: 0
+  }
+})
+const organizeActivePages = computed(() => organizePages.value.filter(page => !page.removed))
+const organizeCanExport = computed(() => organizeFile.value !== null && !isOrganizing.value && organizeActivePages.value.length > 0)
 const selectedSplitCount = computed(() => splitPages.value.filter(page => page.selected).length)
 const canSplit = computed(() => splitFile.value !== null && !isSplitting.value && selectedSplitCount.value > 0)
+
+watch(compressPreset, (preset) => {
+  const appliedStored = applyPresetDefaults(preset)
+  compressAdvancedDirty.value = appliedStored
+  if (appliedStored) {
+    persistAdvancedOptions()
+  }
+})
 
 const compressSavings = computed(() => {
   const stats = compressStats.value
@@ -586,6 +1174,112 @@ const compressSavings = computed(() => {
   }
 })
 
+function toggleCompressAdvanced() {
+  compressAdvancedOpen.value = !compressAdvancedOpen.value
+}
+
+function markCompressAdvancedDirty() {
+  compressAdvancedDirty.value = true
+  persistAdvancedOptions()
+}
+
+function resetCompressAdvanced() {
+  const preset = compressPreset.value
+  removeAdvancedOptionsForPreset(preset)
+  applyPresetDefaults(preset, false)
+  compressAdvancedDirty.value = false
+}
+
+function openCompressPreview() {
+  if (!compressPreviewJob.value) {
+    toastStore.info('Preview Unavailable', 'Run a compression to generate comparison imagery first.')
+    return
+  }
+  compressPreviewModalOpen.value = true
+}
+
+function closeCompressPreview() {
+  compressPreviewModalOpen.value = false
+}
+
+function handleCompressPreviewDownload(_job: Job) {
+  const blob = compressResultBlob.value
+  const file = compressFile.value
+  if (!blob || !file) return
+  const baseName = file.name.replace(/\.pdf$/i, '')
+  const filename = lastCompressedName.value ?? `${baseName}-compressed.pdf`
+  void downloadFile(blob, filename)
+}
+
+function applyPresetDefaults(preset: CompressPresetKey, includeStored = true): boolean {
+  const defaults = compressPresetDefaults[preset]
+  compressOptions.imageQuality = defaults.imageQuality
+  compressOptions.maxImageDimension = defaults.maxImageDimension
+  compressOptions.coordinatePrecision = defaults.coordinatePrecision
+  compressOptions.pruneFonts = true
+  compressOptions.recompressStreams = true
+
+  if (!includeStored) {
+    return false
+  }
+
+  const stored = storedAdvancedOptions[preset]
+  if (stored) {
+    compressOptions.imageQuality = clampNumber(stored.imageQuality, 0.5, 1)
+    compressOptions.maxImageDimension = clampNumber(stored.maxImageDimension, 800, 4000)
+    compressOptions.coordinatePrecision = clampNumber(Math.round(stored.coordinatePrecision), 0, 4)
+    compressOptions.pruneFonts = stored.pruneFonts
+    compressOptions.recompressStreams = stored.recompressStreams
+    return true
+  }
+
+  return false
+}
+
+async function generateOriginalCompressionPreview(file: File) {
+  const requestId = ++compressPreviewOriginalRequest
+  compressPreviewLoadingOriginal.value = true
+  compressPreviewOriginalBlob.value = null
+
+  try {
+    const preview = await generatePdfThumbnail(file, 1, 640)
+    if (compressPreviewOriginalRequest === requestId && compressFile.value === file && preview) {
+      const blob = await dataUrlToBlob(preview)
+      if (compressPreviewOriginalRequest === requestId && compressFile.value === file) {
+        compressPreviewOriginalBlob.value = blob
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to render original preview', error)
+  } finally {
+    if (compressPreviewOriginalRequest === requestId) {
+      compressPreviewLoadingOriginal.value = false
+    }
+  }
+}
+
+async function generateCompressedPreview(blob: Blob) {
+  const requestId = ++compressPreviewCompressedRequest
+  compressPreviewLoadingCompressed.value = true
+  compressPreviewCompressedBlob.value = null
+
+  try {
+    const preview = await generatePdfThumbnail(blob, 1, 640)
+    if (compressPreviewCompressedRequest === requestId && preview) {
+      const imageBlob = await dataUrlToBlob(preview)
+      if (compressPreviewCompressedRequest === requestId) {
+        compressPreviewCompressedBlob.value = imageBlob
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to render compressed preview', error)
+  } finally {
+    if (compressPreviewCompressedRequest === requestId) {
+      compressPreviewLoadingCompressed.value = false
+    }
+  }
+}
+
 function handleOperation(operation: OperationCard) {
   if (operation.key === 'merge') {
     triggerFileDialog()
@@ -593,6 +1287,10 @@ function handleOperation(operation: OperationCard) {
   }
   if (operation.key === 'split') {
     triggerSplitFileDialog()
+    return
+  }
+  if (operation.key === 'organize') {
+    triggerOrganizeFileDialog()
     return
   }
   if (operation.key === 'compress') {
@@ -683,10 +1381,26 @@ function handleCompressFileChange(event: Event) {
 
   compressFile.value = file
   compressPreset.value = 'light'
+  compressAdvancedOpen.value = false
+  const appliedStored = applyPresetDefaults(compressPreset.value)
+  compressAdvancedDirty.value = appliedStored
+  if (appliedStored) {
+    persistAdvancedOptions()
+  }
   compressStats.value = null
+  compressReport.value = null
   compressStage.value = ''
   compressProgress.value = 0
   lastCompressedName.value = null
+  compressPreviewModalOpen.value = false
+  compressPreviewOriginalBlob.value = null
+  compressPreviewCompressedBlob.value = null
+  compressResultBlob.value = null
+  compressPreviewOriginalRequest++
+  compressPreviewCompressedRequest++
+  compressPreviewLoadingOriginal.value = false
+  compressPreviewLoadingCompressed.value = false
+  void generateOriginalCompressionPreview(file)
   input.value = ''
 }
 
@@ -819,11 +1533,25 @@ function resetQueue() {
 function resetCompression() {
   if (isCompressing.value) return
   compressFile.value = null
+  compressAdvancedOpen.value = false
+  compressAdvancedDirty.value = false
   compressPreset.value = 'light'
+  const preset = compressPreset.value
+  removeAdvancedOptionsForPreset(preset)
+  applyPresetDefaults(preset, false)
   compressStats.value = null
+  compressReport.value = null
   compressStage.value = ''
   compressProgress.value = 0
   lastCompressedName.value = null
+  compressPreviewModalOpen.value = false
+  compressPreviewOriginalBlob.value = null
+  compressPreviewCompressedBlob.value = null
+  compressResultBlob.value = null
+  compressPreviewOriginalRequest++
+  compressPreviewCompressedRequest++
+  compressPreviewLoadingOriginal.value = false
+  compressPreviewLoadingCompressed.value = false
 }
 
 function resetSplitQueue() {
@@ -891,17 +1619,26 @@ function ensureSplitObserver(root: HTMLElement | null) {
   }
 }
 
-function registerSplitCard(el: HTMLElement | null, pageIndex: number) {
+function resolveHTMLElement(el: HTMLElement | Element | ComponentPublicInstance | null): HTMLElement | null {
+  if (!el) return null
+  if (el instanceof HTMLElement) return el
+  const component = el as ComponentPublicInstance
+  const possible = component?.$el
+  return possible instanceof HTMLElement ? possible : null
+}
+
+function registerSplitCard(el: HTMLElement | Element | ComponentPublicInstance | null, pageIndex: number) {
+  const element = resolveHTMLElement(el)
   const index = Math.max(1, Math.floor(pageIndex))
-  if (el) {
+  if (element) {
     ensureSplitObserver(splitPagesContainer.value)
-    el.dataset.pageIndex = String(index)
+    element.dataset.pageIndex = String(index)
     const previous = splitObservedElements.get(index)
-    if (previous && previous !== el) {
+    if (previous && previous !== element) {
       splitObserver.value?.unobserve(previous)
     }
-    splitObservedElements.set(index, el)
-    splitObserver.value?.observe(el)
+    splitObservedElements.set(index, element)
+    splitObserver.value?.observe(element)
     if (index <= 4) {
       loadSplitPageThumbnail(index)
     }
@@ -985,19 +1722,27 @@ async function renderPdfPageThumbnail(pdf: any, pageNumber: number, targetWidth 
   }
 }
 
-async function generatePdfThumbnail(file: File, pageNumber = 1): Promise<string | null> {
+async function generatePdfThumbnail(source: Blob, pageNumber = 1, targetWidth = 140): Promise<string | null> {
   try {
     const pdfjs = await loadPdfJs()
-    const data = await file.arrayBuffer()
+    const data = await source.arrayBuffer()
     const loadingTask = pdfjs.getDocument({ data })
     const pdf = await loadingTask.promise
-    const result = await renderPdfPageThumbnail(pdf, pageNumber)
+    const result = await renderPdfPageThumbnail(pdf, pageNumber, targetWidth)
     pdf.destroy?.()
     return result
   } catch (error) {
     console.warn('Failed to generate PDF thumbnail', error)
     return null
   }
+}
+
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const response = await fetch(dataUrl)
+  if (!response.ok) {
+    throw new Error(`Failed to convert data URL to blob: ${response.status}`)
+  }
+  return await response.blob()
 }
 
 async function handleSplitFileChange(event: Event) {
@@ -1068,11 +1813,26 @@ async function startCompression(preset?: CompressPresetKey) {
   compressStage.value = 'Analysing document'
   compressProgress.value = 0
   compressStats.value = null
+  compressReport.value = null
+  compressPreviewModalOpen.value = false
+  compressPreviewCompressedRequest++
+  compressPreviewCompressedBlob.value = null
+  compressResultBlob.value = null
+  compressPreviewLoadingCompressed.value = false
 
   try {
+    const taskOptions = {
+      imageQuality: Number.parseFloat(compressOptions.imageQuality.toFixed(3)),
+      maxImageDimension: Math.round(compressOptions.maxImageDimension),
+      coordinatePrecision: Math.round(compressOptions.coordinatePrecision),
+      pruneFonts: compressOptions.pruneFonts,
+      recompressStreams: compressOptions.recompressStreams
+    }
+
     const result = await pdfWorkerPool.run(file, {
       kind: 'pdf_compress',
-      preset: targetPreset
+      preset: targetPreset,
+      options: taskOptions
     }, {
       onProgress: (progress) => {
         compressProgress.value = progress
@@ -1088,9 +1848,22 @@ async function startCompression(preset?: CompressPresetKey) {
     }
 
     const blob = result.blob as Blob
-    const originalSize = file.size
-    const compressedSize = blob.size
-    compressStats.value = { original: originalSize, result: compressedSize }
+    compressResultBlob.value = blob
+    if (result.stats) {
+      const stats = result.stats as PdfCompressionStats
+      compressStats.value = {
+        original: stats.originalBytes,
+        result: stats.compressedBytes
+      }
+      compressReport.value = stats
+    } else {
+      compressReport.value = null
+      compressStats.value = { original: file.size, result: blob.size }
+    }
+
+    const statsSnapshot = compressStats.value
+    const originalSize = statsSnapshot ? statsSnapshot.original : file.size
+    const compressedSize = statsSnapshot ? statsSnapshot.result : blob.size
 
     const savedBytes = Math.max(0, originalSize - compressedSize)
     const savedPercent = originalSize > 0 ? (savedBytes / originalSize) * 100 : 0
@@ -1102,6 +1875,7 @@ async function startCompression(preset?: CompressPresetKey) {
 
     const baseName = file.name.replace(/\.pdf$/i, '')
     const filename = result.filename ?? `${baseName}-${targetPreset}.pdf`
+    void generateCompressedPreview(blob)
     await downloadFile(blob, filename)
     lastCompressedName.value = filename
 
@@ -1119,6 +1893,314 @@ async function startCompression(preset?: CompressPresetKey) {
     isCompressing.value = false
     compressStage.value = ''
     compressProgress.value = 0
+  }
+}
+
+function triggerOrganizeFileDialog() {
+  if (isOrganizing.value) return
+  organizeInputRef.value?.click()
+}
+
+function resetOrganize() {
+  if (isOrganizing.value) return
+  disposeOrganizeObserver()
+  destroyOrganizePdfDoc()
+  organizePages.value = []
+  organizeFile.value = null
+  organizeStage.value = ''
+  organizeProgress.value = 0
+  organizeLastOutputName.value = null
+}
+
+function destroyOrganizePdfDoc() {
+  if (organizePdfDoc.value) {
+    try {
+      organizePdfDoc.value.destroy?.()
+    } catch (error) {
+      console.warn('Failed to destroy PDF document', error)
+    }
+    organizePdfDoc.value = null
+  }
+  organizeThumbnailPromises.clear()
+}
+
+function disposeOrganizeObserver() {
+  if (organizeObserver.value) {
+    organizeObserver.value.disconnect()
+    organizeObserver.value = null
+  }
+  organizeObservedElements.clear()
+}
+
+function ensureOrganizeObserver(root: HTMLElement | null) {
+  if (typeof IntersectionObserver === 'undefined') return
+  const nextRoot = root ?? null
+  if (organizeObserver.value && organizeObserver.value.root === nextRoot) return
+
+  if (organizeObserver.value) {
+    organizeObserver.value.disconnect()
+  }
+
+  organizeObserver.value = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue
+      const el = entry.target as HTMLElement
+      const pageAttr = el.dataset.pageIndex
+      const pageIndex = pageAttr ? Number.parseInt(pageAttr, 10) : NaN
+      if (!Number.isNaN(pageIndex)) {
+        loadOrganizePageThumbnail(pageIndex)
+      }
+    }
+  }, {
+    root: nextRoot,
+    rootMargin: '160px',
+    threshold: 0.1
+  })
+
+  for (const element of organizeObservedElements.values()) {
+    organizeObserver.value.observe(element)
+  }
+}
+
+function registerOrganizeCard(el: Element | ComponentPublicInstance | null, pageIndex: number) {
+  const element = resolveHTMLElement(el as any)
+  const index = Math.max(1, Math.floor(pageIndex))
+  if (element) {
+    ensureOrganizeObserver(organizePagesContainer.value)
+    element.dataset.pageIndex = String(index)
+    const previous = organizeObservedElements.get(index)
+    if (previous && previous !== element) {
+      organizeObserver.value?.unobserve(previous)
+    }
+    organizeObservedElements.set(index, element)
+    organizeObserver.value?.observe(element)
+    if (index <= 6) {
+      loadOrganizePageThumbnail(index)
+    }
+  } else {
+    const existing = organizeObservedElements.get(index)
+    if (existing) {
+      organizeObserver.value?.unobserve(existing)
+      organizeObservedElements.delete(index)
+    }
+  }
+}
+
+function loadOrganizePageThumbnail(pageNumber: number) {
+  const page = organizePages.value.find(item => item.originalIndex === pageNumber)
+  if (!page || page.thumbnail || page.loading) return
+  const pdf = organizePdfDoc.value
+  if (!pdf) return
+  if (organizeThumbnailPromises.has(pageNumber)) return
+
+  page.loading = true
+  const promise = renderPdfPageThumbnail(pdf, pageNumber)
+    .then((thumb) => {
+      page.thumbnail = thumb
+    })
+    .catch((error) => {
+      console.warn('Failed to render organize thumbnail', error)
+      page.thumbnail = null
+    })
+    .finally(() => {
+      page.loading = false
+      organizeThumbnailPromises.delete(pageNumber)
+    })
+
+  organizeThumbnailPromises.set(pageNumber, promise)
+}
+
+function handleOrganizeDragStart(event: DragEvent, pageId: number) {
+  if (isOrganizing.value) return
+  organizeDragSourceId.value = pageId
+  event.dataTransfer?.setData('text/plain', String(pageId))
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+function handleOrganizeDragOver(event: DragEvent, pageId: number) {
+  if (isOrganizing.value) return
+  event.preventDefault()
+  organizeDragOverId.value = pageId
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+}
+
+function handleOrganizeDragEnter(event: DragEvent, pageId: number) {
+  if (isOrganizing.value) return
+  event.preventDefault()
+  if (organizeDragOverId.value !== pageId) {
+    organizeDragOverId.value = pageId
+  }
+}
+
+function handleOrganizeDragLeave(event: DragEvent, pageId: number) {
+  if (isOrganizing.value) return
+  const related = event.relatedTarget as Node | null
+  const currentTarget = event.currentTarget as HTMLElement | null
+  if (currentTarget && related && currentTarget.contains(related)) {
+    return
+  }
+  if (organizeDragOverId.value === pageId) {
+    organizeDragOverId.value = null
+  }
+}
+
+function handleOrganizeDrop(event: DragEvent, pageId: number) {
+  if (isOrganizing.value) return
+  event.preventDefault()
+  const sourceId = organizeDragSourceId.value
+  organizeDragSourceId.value = null
+  organizeDragOverId.value = null
+  if (!sourceId || sourceId === pageId) return
+
+  const pages = [...organizePages.value]
+  const fromIndex = pages.findIndex(page => page.id === sourceId)
+  const toIndex = pages.findIndex(page => page.id === pageId)
+  if (fromIndex === -1 || toIndex === -1) return
+  const [moved] = pages.splice(fromIndex, 1)
+  pages.splice(toIndex, 0, moved)
+  organizePages.value = pages
+}
+
+function handleOrganizeDragEnd() {
+  organizeDragSourceId.value = null
+  organizeDragOverId.value = null
+}
+
+function rotateOrganizePage(pageId: number, direction: 'left' | 'right') {
+  const page = organizePages.value.find(item => item.id === pageId)
+  if (!page || isOrganizing.value) return
+  const delta = direction === 'left' ? -90 : 90
+  const rotated = ((page.rotation + delta) % 360 + 360) % 360
+  page.rotation = rotated
+}
+
+function toggleOrganizePageRemoved(pageId: number) {
+  const page = organizePages.value.find(item => item.id === pageId)
+  if (!page || isOrganizing.value) return
+  page.removed = !page.removed
+}
+
+function organizeRotationStyle(page: OrganizePage) {
+  if (!page || page.rotation === 0) return undefined
+  return {
+    transform: `rotate(${page.rotation}deg)`
+  }
+}
+
+async function handleOrganizeFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const fileList = input.files
+  if (!fileList || fileList.length === 0) return
+
+  const file = fileList.item(0)
+  if (!file) return
+
+  if (file.type !== 'application/pdf') {
+    toastStore.error('Unsupported File', 'Please select a PDF document to organise')
+    input.value = ''
+    return
+  }
+
+  resetOrganize()
+  organizeFile.value = file
+  organizeStage.value = 'Analysing document'
+  organizeProgress.value = 0
+
+  try {
+    const pdfjs = await loadPdfJs()
+    const data = await file.arrayBuffer()
+    const loadingTask = pdfjs.getDocument({ data })
+    const pdf = await loadingTask.promise
+    organizePdfDoc.value = pdf
+    const total = (pdf as { numPages?: number; getPageCount?: () => number }).numPages ?? pdf.getPageCount?.() ?? 0
+
+    organizePages.value = Array.from({ length: total }, (_, index) => ({
+      id: index + 1,
+      originalIndex: index + 1,
+      rotation: 0,
+      removed: false,
+      thumbnail: null,
+      loading: false
+    }))
+
+    queueMicrotask(() => {
+      for (let i = 1; i <= Math.min(total, 8); i++) {
+        loadOrganizePageThumbnail(i)
+      }
+    })
+  } catch (error) {
+    console.warn('Failed to analyse PDF for organize', error)
+    toastStore.error('Failed to load PDF', 'Could not prepare pages for organisation')
+    resetOrganize()
+  }
+
+  organizeStage.value = ''
+  organizeProgress.value = 0
+  organizeDragSourceId.value = null
+  organizeDragOverId.value = null
+  input.value = ''
+}
+
+async function startOrganize() {
+  const file = organizeFile.value
+  if (!file || !organizeCanExport.value) {
+    toastStore.info('Nothing to organise', 'Select a PDF and keep at least one page to export.')
+    return
+  }
+
+  const order = organizePages.value.filter(page => !page.removed).map(page => page.originalIndex)
+  if (!order.length) {
+    toastStore.error('No Pages Selected', 'Keep at least one page to export')
+    return
+  }
+
+  const rotations: Record<number, number> = {}
+  organizePages.value.forEach((page) => {
+    if (page.rotation % 360 !== 0) {
+      rotations[page.originalIndex] = page.rotation
+    }
+  })
+
+  isOrganizing.value = true
+  organizeStage.value = 'Rebuilding document'
+  organizeProgress.value = 0
+
+  try {
+    const result = await pdfWorkerPool.run(file, {
+      kind: 'pdf_organize',
+      order,
+      rotations
+    }, {
+      onProgress: (progress) => {
+        organizeProgress.value = progress
+      },
+      onStage: (stage) => {
+        organizeStage.value = stage
+      }
+    })
+
+    if (!(result.blob instanceof Blob)) {
+      toastStore.warning('No Output', 'Organize operation returned no data')
+      return
+    }
+
+    const blob = result.blob as Blob
+    const baseName = file.name.replace(/\.pdf$/i, '')
+    const filename = result.filename ?? `${baseName}-organised.pdf`
+    await downloadFile(blob, filename)
+    organizeLastOutputName.value = filename
+    toastStore.success('Pages Organised', `${filename} downloaded`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to organise PDF'
+    toastStore.error('Organise Failed', message)
+  } finally {
+    isOrganizing.value = false
+    organizeStage.value = ''
+    organizeProgress.value = 0
   }
 }
 
@@ -1266,10 +2348,18 @@ watch(splitPagesContainer, (root) => {
   }
 })
 
+watch(organizePagesContainer, (root) => {
+  if (root) {
+    ensureOrganizeObserver(root)
+  }
+})
+
 onBeforeUnmount(() => {
   disposeSplitObserver()
   destroySplitPdfDoc()
   window.removeEventListener('pointerup', handleSplitPointerUp)
+  disposeOrganizeObserver()
+  destroyOrganizePdfDoc()
 })
 
 </script>
@@ -1513,11 +2603,196 @@ onBeforeUnmount(() => {
   gap: var(--space-12);
 }
 
+.compress-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  border: 1px solid var(--color-line-key);
+  border-radius: var(--radius-panel-inner);
+  background: var(--color-bg-inset-2);
+}
+
+.compress-advanced__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.compress-advanced__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.compress-advanced__toggles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding-top: var(--space-4);
+}
+
+.compress-advanced__checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-text-secondary);
+}
+
+.compress-advanced__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-line-hair);
+}
+
+.compress-advanced__toggle-btn {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding-inline: var(--space-6);
+  height: 1.8rem;
+}
+
+.compress-report {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  border: 1px solid var(--color-line-key);
+  border-radius: var(--radius-panel-inner);
+  background: var(--color-bg-panel);
+}
+
+.compress-report__header {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-6);
+}
+
+.compress-report__label {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+}
+
+.compress-report__value {
+  font-family: var(--font-ui-mono, var(--font-ui-sans));
+  font-size: 0.95rem;
+  color: var(--color-text-primary);
+}
+
+.compress-report__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4);
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+.compress-report__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--color-acc-success);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.compress-report__badge--warning {
+  background: rgba(255, 93, 99, 0.15);
+  color: var(--color-acc-error);
+}
+
+.compress-report__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.compress-report__option {
+  font-family: var(--font-ui-mono, var(--font-ui-sans));
+  background: var(--color-bg-inset-2);
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+}
+
+.compress-report__details {
+  display: grid;
+  gap: var(--space-12);
+  padding-top: var(--space-10);
+  border-top: 1px solid var(--color-line-hair);
+}
+
+.compress-report__group {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.compress-report__group-title {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+}
+
+.compress-report__group-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.compress-report__group-saved {
+  font-family: var(--font-ui-mono, var(--font-ui-sans));
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.compress-report__group ul {
+  display: grid;
+  gap: var(--space-4);
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+}
+
+.compress-report__detail-name {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  display: block;
+}
+
+.compress-report__detail-meta {
+  font-family: var(--font-ui-mono, var(--font-ui-sans));
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.compress-report__detail-saved {
+  font-family: var(--font-ui-mono, var(--font-ui-sans));
+  font-size: 0.72rem;
+  color: var(--color-acc-success);
+}
+
 .compress-presets {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-12);
 }
+
 
 .compress-preset {
   display: flex;
@@ -1560,6 +2835,148 @@ onBeforeUnmount(() => {
   color: var(--color-text-muted);
 }
 
+.organize-grid {
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+@media (min-width: 1280px) {
+  .organize-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.organize-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border: 1px solid var(--color-line-key);
+  border-radius: var(--radius-panel-inner);
+  background: var(--color-bg-panel);
+  transition: border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.organize-card--dragging {
+  opacity: 0.6;
+  border-color: var(--color-line-key);
+}
+
+.organize-card--over {
+  border-color: var(--color-acc-error);
+  box-shadow: 0 0 0 1px rgba(255, 93, 99, 0.2);
+}
+
+.organize-card--removed {
+  opacity: 0.55;
+}
+
+.organize-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--color-text-secondary);
+}
+
+.organize-card__index {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.organize-card__thumb {
+  position: relative;
+  border-radius: var(--radius-panel-inner);
+  overflow: hidden;
+  background: var(--color-bg-inset-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+}
+
+.organize-card__thumb img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.organize-card__thumb-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 160ms ease;
+}
+
+.organize-card__thumb-placeholder {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.organize-card__removed-banner {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 0.35rem;
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  text-align: center;
+}
+
+.organize-card__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.organize-card__rotation {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.organize-empty {
+  padding: var(--space-12);
+  border: 1px dashed var(--color-line-key);
+  border-radius: var(--radius-panel-inner);
+  text-align: center;
+}
+
+.organize-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.organize-progress__bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-line-hair);
+  overflow: hidden;
+}
+
+.organize-progress__fill {
+  height: 100%;
+  background: var(--color-acc-error);
+  transition: width 160ms ease-out;
+}
+
+.organize-progress__label {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-text-secondary);
+}
 .split-pages-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));

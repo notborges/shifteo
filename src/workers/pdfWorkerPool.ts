@@ -32,6 +32,7 @@ interface WorkerPdfResult {
   buffer: ArrayBuffer
   filename?: string
   pageCount?: number
+  stats?: unknown
 }
 
 interface WorkerPdfCollectionResult {
@@ -84,7 +85,8 @@ class PdfWorkerPool {
           pending.resolve({
             blob,
             pageCount: payload.pageCount,
-            filename: payload.filename
+            filename: payload.filename,
+            stats: (payload as { stats?: unknown }).stats
           })
           return
         }

@@ -1,5 +1,6 @@
 import { PDFDict, PDFName, PDFNumber, PDFRawStream, PDFRef, PDFDocument, PDFArray, PDFStream, PDFPage } from '@pdfme/pdf-lib'
 import { deflate, inflate } from 'pako'
+import type { PdfImageChange, PdfStreamChange } from './types'
 
 export type VectorPreset = 'light' | 'balanced' | 'small'
 
@@ -42,11 +43,11 @@ function getFilterNames(dict: PDFDict): string[] {
   if (filterEntry instanceof PDFName) {
     return [filterEntry.decodeText()]
   }
-  if ('size' in filterEntry && typeof filterEntry.get === 'function') {
+  if (filterEntry instanceof PDFArray) {
     const names: string[] = []
-    const size = (filterEntry as any).size as number
+    const size = filterEntry.size()
     for (let i = 0; i < size; i++) {
-      const item = (filterEntry as any).get(i)
+      const item = filterEntry.get(i)
       if (item instanceof PDFName) {
         names.push(item.decodeText())
       }
@@ -99,12 +100,12 @@ function shouldDownscale(dict: PDFDict, width: number, height: number, config: I
 
 async function downscaleJpeg(
   data: Uint8Array,
-  width: number,
-  height: number,
   config: ImageCompressionConfig
 ): Promise<{ buffer: Uint8Array; width: number; height: number } | null> {
   try {
-    const blob = new Blob([data], { type: 'image/jpeg' })
+    const bufferCopy = new ArrayBuffer(data.byteLength)
+    new Uint8Array(bufferCopy).set(data)
+    const blob = new Blob([bufferCopy], { type: 'image/jpeg' })
     const bitmap = await createImageBitmap(blob)
 
     const ratio = Math.min(1, config.maxDimension / Math.max(bitmap.width, bitmap.height))
@@ -144,16 +145,23 @@ async function downscaleJpeg(
 
 export async function compressPdfPreservingVectors(
   document: PDFDocument,
-  preset: VectorPreset
-): Promise<boolean> {
+  preset: VectorPreset,
+  overrides: Partial<ImageCompressionConfig> = {}
+): Promise<{ modified: boolean; downscaled: number; totalBytesSaved: number; images: PdfImageChange[] }> {
   if (!hasOffscreenCanvasSupport()) {
-    return false
+    return { modified: false, downscaled: 0, totalBytesSaved: 0, images: [] }
   }
 
   const context = document.context
-  const config = VECTOR_COMPRESSION_CONFIG[preset]
+  const base = VECTOR_COMPRESSION_CONFIG[preset]
+  const config: ImageCompressionConfig = {
+    maxDimension: overrides.maxDimension ?? base.maxDimension,
+    quality: overrides.quality ?? base.quality
+  }
 
-  let modified = false
+  let downscaled = 0
+  let totalBytesSaved = 0
+  const imageChanges: PdfImageChange[] = []
 
   for (const [ref, object] of context.enumerateIndirectObjects()) {
     if (!(object instanceof PDFRawStream)) continue
@@ -170,7 +178,7 @@ export async function compressPdfPreservingVectors(
     }
 
     const originalBytes = object.getContents()
-    const result = await downscaleJpeg(originalBytes, width, height, config)
+    const result = await downscaleJpeg(originalBytes, config)
     if (!result) continue
 
     const newDict = cloneDict(dict)
@@ -186,10 +194,21 @@ export async function compressPdfPreservingVectors(
 
     const newStream = PDFRawStream.of(newDict, result.buffer)
     context.assign(ref as PDFRef, newStream)
-    modified = true
+    downscaled++
+
+    const nameEntry = dict.lookup(PDFName.of('Name'))
+    const label = nameEntry instanceof PDFName ? nameEntry.decodeText() : undefined
+    const savedBytes = Math.max(0, originalBytes.byteLength - result.buffer.byteLength)
+    totalBytesSaved += savedBytes
+    imageChanges.push({
+      name: label,
+      before: { width, height, bytes: originalBytes.byteLength },
+      after: { width: result.width, height: result.height, bytes: result.buffer.byteLength },
+      savedBytes
+    })
   }
 
-  return modified
+  return { modified: downscaled > 0, downscaled, totalBytesSaved, images: imageChanges }
 }
 
 export function hasOffscreenCanvasSupport(): boolean {
@@ -197,13 +216,24 @@ export function hasOffscreenCanvasSupport(): boolean {
     && typeof (OffscreenCanvas.prototype as any)?.convertToBlob === 'function'
 }
 
+interface StreamCompressionConfig {
+  level: number
+  coordinatePrecision: number
+  collapseWhitespace: boolean
+}
+
 export function compressContentStreams(
   document: PDFDocument,
-  preset: VectorPreset
-): boolean {
+  config: StreamCompressionConfig
+): { modified: boolean; streams: number; totalBytesSaved: number; changes: PdfStreamChange[] } {
   const context = document.context
-  const level = preset === 'small' ? 9 : preset === 'balanced' ? 7 : 5
-  let modified = false
+  const level = Math.min(9, Math.max(1, config.level))
+  const precision = Math.min(4, Math.max(0, config.coordinatePrecision))
+  const collapseWhitespace = config.collapseWhitespace
+
+  let rewritten = 0
+  let totalBytesSaved = 0
+  const changes: PdfStreamChange[] = []
 
   for (const [ref, object] of context.enumerateIndirectObjects()) {
     if (!(object instanceof PDFRawStream)) continue
@@ -212,11 +242,10 @@ export function compressContentStreams(
     if (subtype instanceof PDFName && subtype.decodeText() === 'Image') continue
 
     const filter = dict.lookup(PDFName.of('Filter'))
-    const isFlate = filter instanceof PDFName && filter.decodeText() === 'FlateDecode'
-    if (!isFlate) continue
+    if (!(filter instanceof PDFName) || filter.decodeText() !== 'FlateDecode') continue
 
     const encoded = object.getContents()
-    if (!encoded || encoded.length < 256) continue
+    if (!encoded || encoded.length < 64) continue
 
     let decoded: Uint8Array
     try {
@@ -226,18 +255,31 @@ export function compressContentStreams(
     }
 
     let working = decoded
-    if (preset === 'small') {
+    const shouldRound = precision < 4
+
+    if (shouldRound || collapseWhitespace) {
       try {
-        const text = textDecoder.decode(decoded)
-        const rounded = text
-          .replace(floatRegex, (match) => {
+        const raw = textDecoder.decode(decoded)
+        let transformed = raw
+
+        if (shouldRound) {
+          const factor = 10 ** precision
+          transformed = transformed.replace(floatRegex, (match) => {
             const num = Number.parseFloat(match)
             if (!Number.isFinite(num)) return match
-            const roundedNum = Math.round(num * 100) / 100
-            return roundedNum === 0 ? '0' : roundedNum.toString()
+            const rounded = Math.round(num * factor) / factor
+            if (rounded === 0) return '0'
+            return precision > 0 ? Number(rounded.toFixed(precision)).toString() : rounded.toString()
           })
-          .replace(/\s{2,}/g, ' ')
-        working = textEncoder.encode(rounded)
+        }
+
+        if (collapseWhitespace) {
+          transformed = transformed.replace(/\s{2,}/g, ' ')
+        }
+
+        if (transformed !== raw) {
+          working = textEncoder.encode(transformed)
+        }
       } catch (error) {
         working = decoded
       }
@@ -250,7 +292,8 @@ export function compressContentStreams(
       continue
     }
 
-    if (recompressed.length >= encoded.length - 8) {
+    const savedBytes = encoded.length - recompressed.length
+    if (savedBytes <= 8) {
       continue
     }
 
@@ -263,20 +306,31 @@ export function compressContentStreams(
 
     const newStream = PDFRawStream.of(newDict, recompressed)
     context.assign(ref as PDFRef, newStream)
-    modified = true
+    rewritten++
+    totalBytesSaved += savedBytes
+    const refObject = ref as PDFRef
+    changes.push({
+      ref: `${refObject.objectNumber}-${refObject.generationNumber}`,
+      savedBytes
+    })
   }
 
-  return modified
+  return {
+    modified: rewritten > 0,
+    streams: rewritten,
+    totalBytesSaved,
+    changes
+  }
 }
 
-function collectContentStreams(page: PDFPage, context: PDFDocument['context']): PDFStream[] {
+function collectContentStreams(page: PDFPage, context: PDFDocument['context']): PDFRawStream[] {
   const contents = page.node.Contents()
   if (!contents) return []
-  const streams: PDFStream[] = []
+  const streams: PDFRawStream[] = []
 
   const pushStream = (value: any) => {
     const stream = context.lookupMaybe(value, PDFStream)
-    if (stream instanceof PDFStream) {
+    if (stream instanceof PDFRawStream) {
       streams.push(stream)
     }
   }
@@ -286,8 +340,13 @@ function collectContentStreams(page: PDFPage, context: PDFDocument['context']): 
     for (let idx = 0; idx < size; idx++) {
       pushStream(contents.get(idx))
     }
-  } else {
+  } else if (contents instanceof PDFRawStream) {
     streams.push(contents)
+  } else if (contents instanceof PDFStream) {
+    const raw = contents as PDFStream
+    if (raw instanceof PDFRawStream) {
+      streams.push(raw)
+    }
   }
 
   return streams
@@ -298,11 +357,19 @@ function collectUsedFontsForPage(page: PDFPage, context: PDFDocument['context'])
   const streams = collectContentStreams(page, context)
   for (const stream of streams) {
     try {
-      const content = textDecoder.decode(stream.decode())
+      const filter = stream.dict.lookup(PDFName.of('Filter'))
+      const encoded = stream.getContents()
+      let decoded = encoded
+      if (filter instanceof PDFName && filter.decodeText() === 'FlateDecode') {
+        decoded = inflate(encoded)
+      }
+      const content = textDecoder.decode(decoded)
       fontRegex.lastIndex = 0
       let match: RegExpExecArray | null
       while ((match = fontRegex.exec(content)) !== null) {
-        used.add(match[1])
+        if (match[1]) {
+          used.add(match[1])
+        }
       }
     } catch (error) {
       console.warn('Failed to parse content stream for fonts', error)
@@ -313,9 +380,11 @@ function collectUsedFontsForPage(page: PDFPage, context: PDFDocument['context'])
 
 const refKey = (ref: PDFRef) => `${ref.objectNumber}-${ref.generationNumber}`
 
-export function pruneUnusedFonts(document: PDFDocument): boolean {
+export function pruneUnusedFonts(document: PDFDocument, enabled = true): { removedCount: number; removedFonts: string[] } {
+  if (!enabled) return { removedCount: 0, removedFonts: [] }
+
   const pages = document.getPages()
-  if (!pages.length) return false
+  if (!pages.length) return { removedCount: 0, removedFonts: [] }
 
   const fontUsageByDict = new Map<PDFDict, Set<string>>()
   const fontsPerDict = new Map<PDFDict, Array<[PDFName, any]>>()
@@ -337,10 +406,11 @@ export function pruneUnusedFonts(document: PDFDocument): boolean {
   }
 
   if (!fontUsageByDict.size) {
-    return false
+    return { removedCount: 0, removedFonts: [] }
   }
 
-  let modified = false
+  let removedCount = 0
+  const removedFonts: string[] = []
   const prunedFontRefs: PDFRef[] = []
 
   for (const [fontsDict, entries] of fontsPerDict.entries()) {
@@ -352,13 +422,14 @@ export function pruneUnusedFonts(document: PDFDocument): boolean {
         if (fontRef instanceof PDFRef) {
           prunedFontRefs.push(fontRef)
         }
-        modified = true
+        removedCount++
+        removedFonts.push(name)
       }
     }
   }
 
-  if (!modified || prunedFontRefs.length === 0) {
-    return modified
+  if (removedCount === 0 || prunedFontRefs.length === 0) {
+    return { removedCount, removedFonts }
   }
 
   const activeRefs = new Set<string>()
@@ -381,5 +452,5 @@ export function pruneUnusedFonts(document: PDFDocument): boolean {
     }
   }
 
-  return modified
+  return { removedCount, removedFonts }
 }

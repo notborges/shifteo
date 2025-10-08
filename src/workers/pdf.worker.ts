@@ -1,6 +1,7 @@
 /* eslint-disable no-restricted-globals */
 import { PDFDocument, PDFName, PDFDict } from '@pdfme/pdf-lib'
-import type { DocTask } from './types'
+import type { DocTask, PdfCompressionOptions, PdfCompressionStats } from './types'
+import { buildOrganizedDocument } from './pdfOrganize'
 import { compressPdfPreservingVectors, hasOffscreenCanvasSupport, VectorPreset, pruneUnusedFonts, compressContentStreams } from './pdfCompression'
 
 type ExtractDocTask<K extends DocTask['kind']> = Extract<DocTask, { kind: K }>
@@ -33,6 +34,7 @@ interface PdfResultPayload {
   buffer: ArrayBuffer
   filename?: string
   pageCount?: number
+  stats?: PdfCompressionStats
 }
 
 interface PdfCollectionPayload {
@@ -129,6 +131,49 @@ async function handleMerge(id: number, payload: RunMessage) {
     self.postMessage(response, [mergedBuffer])
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to merge PDFs'
+    const response: WorkerResponse = { id, error: message }
+    self.postMessage(response)
+  }
+}
+
+async function handleOrganize(id: number, payload: RunMessage, task: ExtractDocTask<'pdf_organize'>) {
+  const buffer = payload.buffers[0]
+  const meta = payload.meta[0]
+
+  if (!buffer) {
+    const response: WorkerResponse = { id, error: 'Select a PDF to organise.' }
+    self.postMessage(response)
+    return
+  }
+
+  try {
+    postStage(id, 'Loading document')
+    const sourceBytes = new Uint8Array(buffer)
+    const document = await PDFDocument.load(sourceBytes)
+    const { document: organisedDocument, order } = await buildOrganizedDocument(document, task.order, task.rotations ?? {})
+
+    postStage(id, 'Finalising output')
+    postProgress(id, 1)
+
+    const organisedBytes = await organisedDocument.save({ useObjectStreams: true })
+    const organisedBuffer = organisedBytes.slice().buffer
+
+    const baseName = sanitizeFileName(meta?.name ?? 'document', 'document')
+    const filename = `${baseName}-organised.pdf`
+
+    const response: WorkerResponse = {
+      id,
+      result: {
+        kind: 'pdf',
+        buffer: organisedBuffer,
+        filename,
+        pageCount: order.length
+      } satisfies PdfResultPayload
+    }
+
+    self.postMessage(response, [organisedBuffer])
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to organise PDF'
     const response: WorkerResponse = { id, error: message }
     self.postMessage(response)
   }
@@ -243,12 +288,27 @@ async function handleCompress(id: number, payload: RunMessage, task: ExtractDocT
     const sourceBytes = new Uint8Array(buffer)
     const document = await PDFDocument.load(sourceBytes)
     const preset: VectorPreset = task.preset ?? 'light'
+    const compressionOptions: PdfCompressionOptions = task.options ?? {}
+    const presetDefaults = {
+      light: { imageQuality: 0.94, maxImageDimension: 2600, coordinatePrecision: 3 },
+      balanced: { imageQuality: 0.9, maxImageDimension: 2100, coordinatePrecision: 3 },
+      small: { imageQuality: 0.75, maxImageDimension: 1400, coordinatePrecision: 2 }
+    } as const
+    const defaults = presetDefaults[preset]
+    const imageQuality = Math.min(1, Math.max(0.5, compressionOptions.imageQuality ?? defaults.imageQuality))
+    const maxImageDimension = Math.max(400, compressionOptions.maxImageDimension ?? defaults.maxImageDimension)
+    const coordinatePrecision = Math.max(0, Math.min(4, Math.round(compressionOptions.coordinatePrecision ?? defaults.coordinatePrecision)))
+    const pruneFontsEnabled = compressionOptions.pruneFonts !== false
+    const recompressStreamsEnabled = compressionOptions.recompressStreams !== false
+
+    const metadataKeysRemoved: string[] = []
 
     // Drop metadata keys that often carry large XML payloads
     try {
       const metadataRef = document.catalog.get(PDFName.of('Metadata'))
       if (metadataRef) {
         document.catalog.delete(PDFName.of('Metadata'))
+        metadataKeysRemoved.push('Metadata')
       }
       const info = document.context.trailerInfo
       if (info && info instanceof PDFDict) {
@@ -257,6 +317,7 @@ async function handleCompress(id: number, payload: RunMessage, task: ExtractDocT
           const name = PDFName.of(key)
           if (info.has(name)) {
             info.delete(name)
+            metadataKeysRemoved.push(key)
           }
         }
       }
@@ -268,20 +329,32 @@ async function handleCompress(id: number, payload: RunMessage, task: ExtractDocT
     const saveOptions: Parameters<PDFDocument['save']>[0] = {
       addDefaultPage: false,
       objectsPerTick: preset === 'small' ? 8 : preset === 'balanced' ? 16 : 28,
-      useObjectStreams: true,
-      useXRefStream: true
+      useObjectStreams: true
     }
 
     postProgress(id, 0.4)
 
-    const fontPruned = pruneUnusedFonts(document)
-    const streamsCompressed = compressContentStreams(document, preset)
+    const fontResult = pruneUnusedFonts(document, pruneFontsEnabled)
+    const streamLevel = preset === 'small' ? 9 : preset === 'balanced' ? 7 : 5
+    const streamResult = recompressStreamsEnabled
+      ? compressContentStreams(document, {
+          level: streamLevel,
+          coordinatePrecision,
+          collapseWhitespace: preset === 'small'
+        })
+      : { modified: false, streams: 0, totalBytesSaved: 0, changes: [] }
 
     postStage(id, 'Compressing embedded images')
-    const vectorCompressionApplied = await compressPdfPreservingVectors(document, preset)
-    const structuralOptimised = fontPruned || streamsCompressed || vectorCompressionApplied
+    const imageResult = await compressPdfPreservingVectors(document, preset, {
+      maxDimension: maxImageDimension,
+      quality: imageQuality
+    })
+    const vectorCompressionApplied = imageResult.modified
+    const structuralOptimised = fontResult.removedCount > 0 || streamResult.modified || vectorCompressionApplied
 
     const canRasterise = hasOffscreenCanvasSupport()
+    let compressedBuffer: ArrayBuffer | null = null
+    let rasterFallbackUsed = false
 
     if (!structuralOptimised && preset === 'small' && canRasterise) {
       try {
@@ -293,7 +366,7 @@ async function handleCompress(id: number, payload: RunMessage, task: ExtractDocT
 
         const output = await PDFDocument.create()
         const scale = 0.92
-        const quality = 0.85
+        const fallbackQuality = 0.82
 
         for (let pageIndex = 1; pageIndex <= totalPages; pageIndex++) {
           postStage(id, `Rendering page ${pageIndex} / ${totalPages}`)
@@ -303,19 +376,19 @@ async function handleCompress(id: number, payload: RunMessage, task: ExtractDocT
           const height = Math.max(1, Math.round(viewport.height))
 
           const canvas = new OffscreenCanvas(width, height)
-          const context = canvas.getContext('2d', { alpha: false })
-          if (!context) {
+          const context2d = canvas.getContext('2d', { alpha: false })
+          if (!context2d) {
             throw new Error('Unable to acquire OffscreenCanvas context')
           }
 
           const renderTask = page.render({
-            canvasContext: context,
+            canvasContext: context2d,
             viewport,
             background: 'rgb(255,255,255)'
           })
           await renderTask.promise
 
-          const imageBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality })
+          const imageBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality: fallbackQuality })
           const imageBuffer = await imageBlob.arrayBuffer()
           const embeddedImage = await output.embedJpg(imageBuffer)
 
@@ -336,31 +409,22 @@ async function handleCompress(id: number, payload: RunMessage, task: ExtractDocT
         await loadingTask.destroy()
         await pdfProxy.destroy?.()
 
-        postStage(id, 'Finalising output')
         const rasterBytes = await output.save({ useObjectStreams: true })
-        const rasterBuffer = rasterBytes.slice().buffer
-
-        const baseName = sanitizeFileName(meta?.name ?? 'document', 'document')
-        const filename = `${baseName}-small.pdf`
-
-        const response: WorkerResponse = {
-          id,
-          result: {
-            kind: 'pdf',
-            buffer: rasterBuffer,
-            filename
-          } satisfies PdfResultPayload
-        }
-
-        self.postMessage(response, [rasterBuffer])
-        return
+        compressedBuffer = rasterBytes.slice().buffer
+        rasterFallbackUsed = true
       } catch (error) {
         console.warn('Raster compression fallback', error)
       }
     }
 
-    const compressedBytes = await document.save(saveOptions)
-    const compressedBuffer = compressedBytes.slice().buffer
+    if (!compressedBuffer) {
+      const compressedBytes = await document.save(saveOptions)
+      compressedBuffer = compressedBytes.slice().buffer
+    }
+
+    if (!compressedBuffer) {
+      throw new Error('Compression pipeline failed to produce output')
+    }
 
     postStage(id, 'Finalising output')
     postProgress(id, 1)
@@ -383,13 +447,39 @@ async function handleCompress(id: number, payload: RunMessage, task: ExtractDocT
     }
     const filename = `${baseName}-${suffix}.pdf`
 
+    const stats: PdfCompressionStats = {
+      originalBytes: buffer.byteLength,
+      compressedBytes: compressedBuffer.byteLength,
+      fontsRemoved: fontResult.removedCount,
+      streamsRecompressed: streamResult.streams,
+      imagesDownscaled: imageResult.downscaled,
+      rasterFallbackUsed,
+      preset,
+      options: {
+        imageQuality,
+        maxImageDimension,
+        coordinatePrecision,
+        pruneFonts: pruneFontsEnabled,
+        recompressStreams: recompressStreamsEnabled
+      },
+      details: {
+        metadataKeysRemoved: Array.from(new Set(metadataKeysRemoved)),
+        fontsRemoved: fontResult.removedFonts,
+        imageChanges: imageResult.images,
+        streamChanges: streamResult.changes,
+        imageBytesSaved: imageResult.totalBytesSaved,
+        streamBytesSaved: streamResult.totalBytesSaved
+      }
+    }
+
     const response: WorkerResponse = {
       id,
       result: {
         kind: 'pdf',
         buffer: compressedBuffer,
-        filename
-      } satisfies PdfResultPayload
+        filename,
+        stats
+      } satisfies PdfResultPayload & { stats: typeof stats }
     }
 
     self.postMessage(response, [compressedBuffer])
@@ -412,6 +502,9 @@ async function handleRun(id: number, payload: RunMessage) {
       break
     case 'pdf_compress':
       await handleCompress(id, payload, task as ExtractDocTask<'pdf_compress'>)
+      break
+    case 'pdf_organize':
+      await handleOrganize(id, payload, task as ExtractDocTask<'pdf_organize'>)
       break
     default: {
       const message = `PDF operation "${task.kind}" is not implemented yet`
