@@ -16,7 +16,7 @@ const SEO_ENTRIES: SeoEntry[] = seoConfig as SeoEntry[]
 const ENTRY_BY_NAME = new Map(SEO_ENTRIES.map((entry) => [entry.name, entry]))
 const ENTRY_BY_PATH = new Map(SEO_ENTRIES.map((entry) => [entry.path, entry]))
 
-const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined)?.replace(/\/?$/, '') || 'https://shifteo.akius.tools'
+const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined)?.replace(/\/?$/, '') || 'https://shifteo.app'
 const DEFAULT_TITLE = 'Shifteo — Shift files locally in your browser'
 const DEFAULT_DESCRIPTION = 'Shift images and documents locally in your browser. Zero uploads. Zero tracking.'
 const DEFAULT_IMAGE = `${SITE_URL}/icon-512.png`

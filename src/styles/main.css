@@ -1913,3 +1913,32 @@ body {
 .drag-overlay-leave-to {
   opacity: 0;
 }
+
+/* === PDF Checkbox Selector (for Merge workflow) === */
+.pdf-checkbox-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  border: 1px dashed var(--color-line-key);
+  border-radius: var(--radius-panel);
+  background: var(--color-bg-inset);
+}
+
+.pdf-checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.pdf-checkbox-item {
+  width: 100%;
+}
+
+.pdf-checkbox-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  width: 100%;
+}

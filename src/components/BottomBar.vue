@@ -2,7 +2,7 @@
   <footer class="footer-bar">
     <div>
       Shifteo by
-      <a href="https://akius.tools" target="_blank" rel="noopener noreferrer">Akius</a>
+      <a href="https://akius.dev" target="_blank" rel="noopener noreferrer">Akius</a>
       ·
       <RouterLink to="/licenses">Licenses</RouterLink>
     </div>

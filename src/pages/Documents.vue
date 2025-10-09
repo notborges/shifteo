@@ -1,768 +1,402 @@
 <template>
-  <div class="page-shell">
+  <div
+    class="page-shell"
+    @dragenter="handlePageDragEnter"
+    @dragover.prevent="handlePageDragOver"
+    @dragleave="handlePageDragLeave"
+    @drop.prevent="handlePageDrop"
+  >
+    <Transition name="drag-overlay">
+      <div v-if="isPageDragging" class="page-drag-overlay">
+        <div class="page-drag-indicator">
+          <Upload :size="64" :stroke-width="1.5" />
+          <div class="page-drag-text">Drop PDFs to add them to the queue</div>
+        </div>
+      </div>
+    </Transition>
+
     <div class="page-grid gap-6">
-      <UiPanel class="col-span-12">
+      <UiPanel class="col-span-12" :inset="true">
         <template #header>
           <div class="flex items-center gap-2">
             <FileText :size="16" />
             <span>PDF Toolkit</span>
           </div>
-          <span class="panel__meta">High-impact PDF workflows in progress</span>
+          <span class="panel__meta">Add PDFs to the queue, then route them to the right workflow</span>
         </template>
-        <div class="space-y-4 body-text text-text-muted">
-          <p>
-            We are building Shifteo into a full-featured PDF swiss army knife—think a faster, privacy-first iLovePDF.
-            Track progress in <code class="mono">docs/pdf-roadmap.md</code> inside this project and let us know which tools to prioritise.
-          </p>
-          <UiButton to="/licenses" variant="quiet" size="sm">View Dependencies</UiButton>
-        </div>
+        <DropZone
+          :multiple="true"
+          accept="application/pdf"
+          :formats="['PDF']"
+          @files-selected="handleQueueFilesSelected"
+          @drop-complete="clearPageDragState"
+        />
       </UiPanel>
 
       <UiPanel class="col-span-12">
         <template #header>
-          <span class="body-text uppercase tracking-wider text-text-secondary">Core Workflows</span>
-        </template>
-        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <article
-            v-for="operation in operations"
-            :key="operation.key"
-            class="pdf-card"
-          >
-            <header class="pdf-card__header">
-              <h3 class="pdf-card__title">{{ operation.title }}</h3>
-              <span :class="['pdf-card__status', statusTone(operation.status)]">{{ operation.status }}</span>
-            </header>
-            <p class="pdf-card__description">{{ operation.description }}</p>
-            <footer class="pdf-card__footer">
-              <UiButton
-                type="button"
-                size="sm"
-                :tone="operation.status === 'In progress' ? 'accent' : 'default'"
-                :disabled="operation.disabled"
-                @click="handleOperation(operation)"
-              >
-                {{ operation.disabled ? 'Coming Soon' : operation.cta }}
-              </UiButton>
-            </footer>
-          </article>
-        </div>
-      </UiPanel>
-
-      <UiPanel class="col-span-12">
-        <template #header>
-          <div class="flex items-center gap-2">
-            <Upload :size="16" />
-            <span>Merge PDFs (beta)</span>
+          <span>Queue</span>
+          <div class="panel__meta">
+            {{ pdfQueue.length }} PDF{{ pdfQueue.length === 1 ? '' : 's' }}
           </div>
-          <span class="panel__meta">Combine multiple PDFs in any order</span>
         </template>
 
-        <div class="space-y-6">
-          <div class="flex flex-wrap gap-3">
-            <UiButton type="button" size="sm" :disabled="isMerging" @click="triggerFileDialog">
-              Add PDFs
-            </UiButton>
+        <div class="panel__body">
+          <div v-if="pdfQueue.length === 0" class="empty-state">
+            <ListX :size="48" :stroke-width="1" class="text-text-muted" />
+            <div class="empty-state__title">Queue Empty</div>
+            <div class="empty-state__meta">Drop PDFs above to start.</div>
+          </div>
+          <PdfQueueList
+            v-else
+            :items="pdfQueue"
+            :locked="isQueueLocked"
+            :draggable="true"
+            :badges="queueAssignments"
+            hint="Drag items onto a workflow panel or use the 'Choose from queue' controls below."
+            @preview="previewQueueItem"
+            @download="downloadQueueItem"
+            @remove="removeQueueItem"
+            @drag-start="handleQueueDragStart"
+            @drag-end="handleQueueDragEnd"
+          />
+        </div>
+
+        <div class="panel__footer" v-if="pdfQueue.length > 0">
+          <div class="flex w-full items-center justify-between flex-wrap gap-2">
+            <span>{{ pdfQueue.length }} PDF{{ pdfQueue.length > 1 ? 's' : '' }}</span>
             <UiButton
               type="button"
               size="sm"
               variant="quiet"
               tone="warning"
-              :disabled="!hasFiles || isMerging"
-              @click="resetQueue"
+              :disabled="pdfQueue.length === 0 || isQueueLocked"
+              @click="clearPdfQueue"
             >
               Clear Queue
             </UiButton>
-            <span v-if="hasFiles" class="body-text text-text-muted">
-              {{ mergeFiles.length }} file{{ mergeFiles.length === 1 ? '' : 's' }} · {{ formatFileSize(totalSize) }}
-            </span>
-            <span v-if="lastResultName" class="body-text text-text-secondary">Last output: {{ lastResultName }}</span>
           </div>
+        </div>
+      </UiPanel>
 
-          <input
-            ref="fileInputRef"
-            type="file"
-            multiple
-            accept="application/pdf"
-            class="hidden"
-            @change="handleFileChange"
-          />
+      <WorkflowSection
+        title="Merge PDFs"
+        subtitle="Combine multiple PDFs in any order"
+        :icon="Upload"
+        colspan="12 lg:col-span-6"
+        :supports-drop="true"
+        @drop="handleMergeDropZoneDrop"
+      >
+        <!-- Description & Meta -->
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="body-text text-text-muted text-sm">
+            Send PDFs from the queue to build your merge order.
+          </span>
+          <span v-if="hasFiles" class="mono text-text-secondary text-sm">
+            {{ mergeFiles.length }} file{{ mergeFiles.length === 1 ? '' : 's' }} · {{ formatFileSize(totalSize) }}
+          </span>
+          <span v-if="lastResultName" class="body-text text-text-secondary text-sm">Last output: {{ lastResultName }}</span>
+        </div>
 
-          <div
-            v-if="mergeFiles.length > 0"
-            class="merge-list"
-          >
-            <p class="merge-list__hint">Drag to reorder. Items merge from top to bottom.</p>
-            <div
-              v-for="(item, index) in mergeFiles"
-              :key="item.id"
-              class="merge-item"
-              :class="{
-                'merge-item--over': dragOverId === item.id,
-                'merge-item--dragging': dragSourceId === item.id
-              }"
-              :draggable="!isMerging"
-              role="option"
-              :aria-selected="false"
-              :aria-grabbed="!isMerging && dragSourceId === item.id"
-              @dragstart="handleDragStart($event, item.id)"
-              @dragover="handleDragOver($event, item.id)"
-              @dragenter="handleDragEnter($event, item.id)"
-              @dragleave="handleDragLeave($event, item.id)"
-              @drop="handleDrop($event, item.id)"
-              @dragend="handleDragEnd"
+        <!-- Queue PDF Selector (Checkboxes) -->
+        <div v-if="pdfQueue.length" class="pdf-checkbox-selector">
+          <p class="body-text text-text-secondary uppercase tracking-wider text-xs">Queue PDFs</p>
+          <div class="pdf-checkbox-list">
+            <UiCheckbox
+              v-for="item in pdfQueue"
+              :key="`merge-source-${item.id}`"
+              class="pdf-checkbox-item"
+              :model-value="mergeSourceIds.has(item.id)"
+              :disabled="isMerging"
+              @change="value => handleMergeCheckbox(item.id, value)"
             >
-              <span class="merge-item__order" aria-hidden="true">{{ index + 1 }}</span>
-              <div class="merge-item__thumb" aria-hidden="true">
-                <img v-if="item.thumbnail" :src="item.thumbnail" alt="" />
-                <div v-else class="merge-item__thumb merge-item__thumb--placeholder">
-                  {{ item.loading ? 'Rendering…' : 'No preview' }}
-                </div>
+              <div class="pdf-checkbox-content">
+                <span class="mono truncate">{{ item.file.name }}</span>
+                <span class="text-text-muted text-xs">{{ formatFileSize(item.file.size) }}</span>
               </div>
-              <div class="merge-item__meta">
-                <div class="mono truncate">{{ item.file.name }}</div>
-                <div class="text-xs text-text-muted">{{ formatFileSize(item.file.size) }}</div>
-              </div>
-              <div class="merge-item__actions">
-                <UiButton
-                  type="button"
-                  variant="quiet"
-                  size="sm"
-                  icon-only
-                  :disabled="index === 0 || isMerging"
-                  @click="moveItem(item.id, 'up')"
-                  title="Move up"
-                >
-                  <ArrowUp :size="16" />
-                </UiButton>
-                <UiButton
-                  type="button"
-                  variant="quiet"
-                  size="sm"
-                  icon-only
-                  :disabled="index === mergeFiles.length - 1 || isMerging"
-                  @click="moveItem(item.id, 'down')"
-                  title="Move down"
-                >
-                  <ArrowDown :size="16" />
-                </UiButton>
-                <UiButton
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  icon-only
-                  :disabled="isMerging"
-                  @click="removeItem(item.id)"
-                  title="Remove"
-                >
-                  <Trash2 :size="16" />
-                </UiButton>
-              </div>
-            </div>
+            </UiCheckbox>
           </div>
+        </div>
 
-          <div v-else class="merge-empty">
-            <p class="body-text text-text-muted">Add two or more PDFs to get started.</p>
-          </div>
+        <!-- Merge List with Drag & Drop -->
+        <MergeList
+          :items="mergeFiles"
+          :disabled="isMerging"
+          @move="moveItem"
+          @remove="removeItem"
+          @reorder="handleMergeReorder"
+        />
 
-          <div v-if="isMerging" class="merge-progress">
-            <div class="merge-progress__bar">
-              <div class="merge-progress__fill" :style="{ width: `${Math.round(mergeProgress * 100)}%` }" />
-            </div>
-            <div class="merge-progress__label">
-              {{ mergeStage || 'Merging...' }}
-              <span v-if="mergeProgress > 0"> · {{ Math.round(mergeProgress * 100) }}%</span>
-            </div>
-          </div>
-
+        <!-- Clear Button -->
+        <div v-if="hasFiles" class="flex justify-end">
           <UiButton
             type="button"
-            size="md"
-            tone="accent"
-            :disabled="!canMerge"
-            @click="startMerge"
+            size="sm"
+            variant="quiet"
+            tone="warning"
+            :disabled="!hasFiles || isMerging"
+            @click="resetQueue"
           >
-            Merge & Download
+            Clear Merge Order
           </UiButton>
         </div>
-      </UiPanel>
 
-      <UiPanel class="col-span-12">
-        <template #header>
-          <div class="flex items-center gap-2">
-            <Scissors :size="16" />
-            <span>Split / Extract (beta)</span>
-          </div>
-          <span class="panel__meta">Extract selected pages into a new PDF</span>
-        </template>
+        <!-- Progress Bar -->
+        <ProgressBar
+          v-if="isMerging"
+          :progress="mergeProgress"
+          :label="mergeStage || 'Merging...'"
+        />
 
-        <div class="space-y-6">
-          <div class="flex flex-wrap gap-3">
-            <UiButton type="button" size="sm" :disabled="isSplitting" @click="triggerSplitFileDialog">
-              Choose PDF
-            </UiButton>
-            <UiButton
-              type="button"
-              size="sm"
-              variant="quiet"
-              tone="warning"
-              :disabled="!splitFile || isSplitting"
-              @click="resetSplitQueue"
-            >
-              Clear Selection
-            </UiButton>
-            <span v-if="splitFile" class="body-text text-text-muted">
-              {{ splitFile.name }}<span v-if="splitPageCount"> • {{ splitPageCount }} pages</span>
-            </span>
-            <span v-if="splitFile && splitPageCount" class="body-text text-text-secondary">
-              Selected {{ selectedSplitCount }} / {{ splitPageCount }}
-            </span>
-          </div>
+        <!-- Action Button -->
+        <UiButton
+          type="button"
+          size="lg"
+          tone="accent"
+          variant="solid"
+          :disabled="!canMerge"
+          @click="startMerge"
+        >
+          Merge & Download
+        </UiButton>
+      </WorkflowSection>
 
-          <input
-            ref="splitInputRef"
-            type="file"
-            accept="application/pdf"
-            class="hidden"
-            @change="handleSplitFileChange"
-          />
+      <WorkflowSection
+        title="Split / Extract"
+        subtitle="Extract selected pages into a new PDF"
+        :icon="Scissors"
+        colspan="12 lg:col-span-6"
+        :supports-drop="true"
+        @drop="handleSplitDropZoneDrop"
+      >
+        <!-- Source PDF Selector -->
+        <PdfSourceSelector
+          :queue-items="pdfQueue"
+          :selected-id="splitSourceId"
+          :disabled="isSplitting"
+          @select="handleSplitSelection"
+          @clear="resetSplitQueue"
+        />
 
-          <div class="split-preview" v-if="splitFile">
-            <div v-if="splitThumbnail" class="split-preview__thumb">
-              <img :src="splitThumbnail" alt="" />
-            </div>
-            <div v-else class="split-preview__thumb split-preview__thumb--placeholder">Preview</div>
-            <div class="split-preview__form">
-              <label class="body-text text-text-secondary uppercase tracking-wider block">Select pages</label>
-              <p class="body-text text-text-muted text-sm">
-                Click thumbnails to toggle which pages will be included in the exported PDF.
-              </p>
-              <div class="split-pages-actions">
-                <UiButton type="button" size="sm" :disabled="isSplitting || !splitPages.length" @click="selectAllSplitPages">Select All</UiButton>
-                <UiButton type="button" size="sm" variant="quiet" :disabled="isSplitting || !splitPages.length" @click="clearSplitSelection">Clear</UiButton>
-                <UiButton type="button" size="sm" variant="quiet" :disabled="isSplitting || !splitPages.length" @click="invertSplitSelection">Invert</UiButton>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="splitPages.length" class="split-pages-grid" ref="splitPagesContainer">
-            <button
-              v-for="page in splitPages"
-              :key="page.index"
-              type="button"
-              class="split-page-card"
-              :class="{
-                'split-page-card--selected': page.selected,
-                'split-page-card--loading': page.loading,
-                'split-page-card--disabled': isSplitting
-              }"
-              :ref="el => registerSplitCard(el, page.index)"
-              draggable="false"
-              @pointerdown="handleSplitPointerDown($event, page.index)"
-              @pointerenter="handleSplitPointerEnter(page.index)"
-              @pointerup="handleSplitPointerUp"
-              :disabled="isSplitting"
-            >
-              <div class="split-page-card__thumb">
-                <img v-if="page.thumbnail" :src="page.thumbnail" alt="" />
-                <div v-else class="split-page-card__thumb split-page-card__thumb--placeholder">
-                  {{ page.loading ? '…' : page.index }}
-                </div>
-              </div>
-              <div class="split-page-card__label">Page {{ page.index }}</div>
-            </button>
-          </div>
-
-          <div v-if="isSplitting" class="merge-progress">
-            <div class="merge-progress__bar">
-              <div class="merge-progress__fill" :style="{ width: `${Math.round(splitProgress * 100)}%` }" />
-            </div>
-            <div class="merge-progress__label">
-              {{ splitStage || 'Extracting...' }}
-              <span v-if="splitProgress > 0"> · {{ Math.round(splitProgress * 100) }}%</span>
-            </div>
-          </div>
-
-          <div class="split-actions">
-            <UiButton
-              type="button"
-              size="md"
-              tone="accent"
-              :disabled="!canSplit"
-              @click="startSplit('single')"
-            >
-              Export as single PDF
-            </UiButton>
-            <UiButton
-              type="button"
-              size="md"
-              variant="quiet"
-              :disabled="!canSplit"
-              @click="startSplit('individual')"
-            >
-              Download selected pages (ZIP)
-            </UiButton>
-          </div>
+        <!-- File Meta Info -->
+        <div v-if="splitFile" class="flex flex-col gap-2">
+          <span class="mono text-text-primary">
+            {{ splitFile.name }}<span v-if="splitPageCount"> · {{ splitPageCount }} pages</span>
+          </span>
+          <span v-if="splitPageCount" class="body-text text-text-secondary text-sm">
+            Selected {{ selectedSplitCount }} / {{ splitPageCount }}
+          </span>
         </div>
-      </UiPanel>
 
-      <UiPanel class="col-span-12">
-        <template #header>
-          <div class="flex items-center gap-2">
-            <Grid3x3 :size="16" />
-            <span>Organize Pages (beta)</span>
-          </div>
-          <span class="panel__meta">Reorder, rotate, or remove pages before exporting</span>
-        </template>
-
-        <div class="space-y-6">
-          <div class="flex flex-wrap items-center gap-3">
-            <UiButton type="button" size="sm" :disabled="isOrganizing" @click="triggerOrganizeFileDialog">
-              Choose PDF
-            </UiButton>
-            <UiButton
-              type="button"
-              size="sm"
-              variant="quiet"
-              tone="warning"
-              :disabled="!organizeFile || isOrganizing"
-              @click="resetOrganize"
-            >
-              Reset
-            </UiButton>
-            <span v-if="organizeFile" class="body-text text-text-muted">
-              {{ organizeFile.name }} · {{ formatFileSize(organizeFile.size) }}
-            </span>
-            <span v-if="organizeLastOutputName" class="body-text text-text-secondary">Last output: {{ organizeLastOutputName }}</span>
-          </div>
-
+        <!-- Instructions & Selection Controls -->
+        <div v-if="splitFile" class="flex flex-col gap-3">
           <p class="body-text text-text-muted text-sm">
-            Drag thumbnails to reorder pages. Rotate or remove any page before exporting the new PDF.
+            Click thumbnails to toggle which pages will be included in the exported PDF.
           </p>
-
-          <input
-            ref="organizeInputRef"
-            type="file"
-            accept="application/pdf"
-            class="hidden"
-            @change="handleOrganizeFileChange"
-          />
-
-          <div
-            v-if="organizePages.length > 0"
-            ref="organizePagesContainer"
-            class="organize-grid"
-          >
-            <article
-              v-for="(page, index) in organizePages"
-              :key="page.id"
-              class="organize-card"
-              :class="{
-                'organize-card--removed': page.removed,
-                'organize-card--dragging': organizeDragSourceId === page.id,
-                'organize-card--over': organizeDragOverId === page.id
-              }"
-              :draggable="!page.loading && !isOrganizing"
-              @dragstart="handleOrganizeDragStart($event, page.id)"
-              @dragover="handleOrganizeDragOver($event, page.id)"
-              @dragenter="handleOrganizeDragEnter($event, page.id)"
-              @dragleave="handleOrganizeDragLeave($event, page.id)"
-              @drop="handleOrganizeDrop($event, page.id)"
-              @dragend="handleOrganizeDragEnd"
-              :aria-grabbed="organizeDragSourceId === page.id"
-              :aria-label="`Page ${index + 1}`"
-              :ref="el => registerOrganizeCard(el, page.originalIndex)"
-            >
-              <header class="organize-card__header">
-                <span class="organize-card__index">{{ index + 1 }}</span>
-                <span class="organize-card__meta">Page {{ page.originalIndex }}</span>
-              </header>
-              <div class="organize-card__thumb" aria-hidden="true">
-                <div v-if="page.loading" class="organize-card__thumb-placeholder">Loading…</div>
-                <div v-else-if="page.thumbnail" class="organize-card__thumb-inner" :style="organizeRotationStyle(page)">
-                  <img :src="page.thumbnail" alt="" />
-                </div>
-                <div v-else class="organize-card__thumb-placeholder">No preview</div>
-                <div v-if="page.removed" class="organize-card__removed-banner">Removed</div>
-              </div>
-              <footer class="organize-card__actions">
-                <UiButton
-                  type="button"
-                  size="sm"
-                  variant="quiet"
-                  icon-only
-                  :disabled="page.loading || isOrganizing"
-                  @click="rotateOrganizePage(page.id, 'left')"
-                  title="Rotate counter-clockwise"
-                >
-                  <RotateCcw :size="16" />
-                </UiButton>
-                <UiButton
-                  type="button"
-                  size="sm"
-                  variant="quiet"
-                  icon-only
-                  :disabled="page.loading || isOrganizing"
-                  @click="rotateOrganizePage(page.id, 'right')"
-                  title="Rotate clockwise"
-                >
-                  <RotateCw :size="16" />
-                </UiButton>
-                <UiButton
-                  type="button"
-                  size="sm"
-                  variant="quiet"
-                  icon-only
-                  :tone="page.removed ? 'success' : 'warning'"
-                  :disabled="isOrganizing"
-                  @click="toggleOrganizePageRemoved(page.id)"
-                  :title="page.removed ? 'Restore page' : 'Remove page'"
-                >
-                  <Undo2 v-if="page.removed" :size="16" />
-                  <Trash2 v-else :size="16" />
-                </UiButton>
-              </footer>
-              <div class="organize-card__rotation" v-if="page.rotation !== 0">
-                Rotated {{ page.rotation }}°
-              </div>
-            </article>
-          </div>
-
-          <div v-else class="organize-empty">
-            <p class="body-text text-text-muted">Choose a PDF to start organising its pages.</p>
-          </div>
-
-          <div v-if="isOrganizing" class="organize-progress">
-            <div class="organize-progress__bar">
-              <div class="organize-progress__fill" :style="{ width: `${Math.round(organizeProgress * 100)}%` }" />
-            </div>
-            <div class="organize-progress__label">
-              {{ organizeStage || 'Preparing...' }}
-              <span v-if="organizeProgress > 0"> · {{ Math.round(organizeProgress * 100) }}%</span>
-            </div>
-          </div>
-
-          <UiButton
-            type="button"
-            size="md"
-            tone="accent"
-            :disabled="!organizeCanExport"
-            @click="startOrganize"
-          >
-            Export Organised PDF
-          </UiButton>
-        </div>
-      </UiPanel>
-
-      <UiPanel class="col-span-12">
-        <template #header>
-          <div class="flex items-center gap-2">
-            <Gauge :size="16" />
-            <span>Compress PDF (alpha)</span>
-          </div>
-          <span class="panel__meta">Shrink PDFs with tuned presets</span>
-        </template>
-
-        <div class="space-y-6">
-          <div class="flex flex-wrap items-center gap-3">
-            <UiButton type="button" size="sm" :disabled="isCompressing" @click="triggerCompressFileDialog">
-              Choose PDF
-            </UiButton>
-            <UiButton
-              type="button"
-              size="sm"
-              variant="quiet"
-              tone="warning"
-              :disabled="!compressFile || isCompressing"
-              @click="resetCompression"
-            >
-              Reset
-            </UiButton>
-            <span v-if="compressFile" class="body-text text-text-muted">
-              {{ compressFile.name }} · {{ formatFileSize(compressFile.size) }}
-            </span>
-            <span v-if="compressSavings" class="body-text text-text-secondary">
-              Saved {{ compressSavings.percent }} · {{ formatFileSize(compressSavings.savedBytes) }}
-            </span>
-            <span v-else-if="lastCompressedName" class="body-text text-text-secondary">
-              Last output: {{ lastCompressedName }}
-            </span>
-          </div>
-
-          <div class="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <p class="body-text text-text-muted text-sm">
-                All compression runs locally in your browser worker—drop in a PDF, select a preset, and download the optimised result.
-              </p>
-              <p class="text-xs text-text-secondary">
-                Light and Balanced keep vector text intact by compressing embedded images; Smallest falls back to rasterising pages when necessary.
-              </p>
-            </div>
-            <div class="flex items-center gap-2">
-              <UiButton
-                type="button"
-                size="sm"
-                variant="quiet"
-                class="compress-advanced__toggle-btn"
-                @click="toggleCompressAdvanced"
-              >
-                {{ compressAdvancedOpen ? 'Hide advanced controls' : 'Advanced controls' }}
-              </UiButton>
-              <UiButton
-                v-if="false"
-                type="button"
-                size="sm"
-                variant="quiet"
-                class="compress-advanced__toggle-btn"
-                :disabled="!canOpenPreview"
-                @click="openCompressPreview"
-              >
-                <Eye :size="16" />
-                <span>Compare preview</span>
-              </UiButton>
-            </div>
-          </div>
-
-          <input
-            ref="compressInputRef"
-            type="file"
-            accept="application/pdf"
-            class="hidden"
-            @change="handleCompressFileChange"
-          />
-
-          <div v-if="compressAdvancedOpen" class="compress-advanced">
-            <div class="compress-advanced__row">
-              <div class="compress-advanced__label">
-                <span class="body-text text-text-secondary uppercase tracking-wider">Image Quality</span>
-                <span class="mono">{{ Math.round(compressOptions.imageQuality * 100) }}%</span>
-              </div>
-              <input
-                type="range"
-                min="0.5"
-                max="1"
-                step="0.01"
-                v-model.number="compressOptions.imageQuality"
-                @input="markCompressAdvancedDirty"
-                class="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--color-line-hair)]
-                       [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none
-                       [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--color-bg-canvas)]
-                       [&::-webkit-slider-thumb]:bg-[var(--color-acc-error)] [&::-webkit-slider-thumb]:transition-shadow
-                       [&::-webkit-slider-thumb]:hover:shadow-glow
-                       [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-acc-error)]"
-                title="Adjust JPEG recompression quality"
-              />
-            </div>
-
-            <div class="compress-advanced__row">
-              <div class="compress-advanced__label">
-                <span class="body-text text-text-secondary uppercase tracking-wider">Max Image Dimension</span>
-                <span class="mono">{{ Math.round(compressOptions.maxImageDimension) }} px</span>
-              </div>
-              <input
-                type="range"
-                min="800"
-                max="3200"
-                step="10"
-                v-model.number="compressOptions.maxImageDimension"
-                @input="markCompressAdvancedDirty"
-                class="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--color-line-hair)]
-                       [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none
-                       [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--color-bg-canvas)]
-                       [&::-webkit-slider-thumb]:bg-[var(--color-acc-error)] [&::-webkit-slider-thumb]:transition-shadow
-                       [&::-webkit-slider-thumb]:hover:shadow-glow
-                       [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-acc-error)]"
-                title="Clamp embedded image dimensions to control resolution"
-              />
-            </div>
-
-            <div class="compress-advanced__row">
-              <div class="compress-advanced__label">
-                <span class="body-text text-text-secondary uppercase tracking-wider">Coordinate Precision</span>
-                <span class="mono">{{ compressOptions.coordinatePrecision }} decimals</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="3"
-                step="1"
-                v-model.number="compressOptions.coordinatePrecision"
-                @input="markCompressAdvancedDirty"
-                class="h-1 w-full cursor-pointer appearance-none rounded-full bg-[var(--color-line-hair)]
-                       [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none
-                       [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--color-bg-canvas)]
-                       [&::-webkit-slider-thumb]:bg-[var(--color-acc-error)] [&::-webkit-slider-thumb]:transition-shadow
-                       [&::-webkit-slider-thumb]:hover:shadow-glow
-                       [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--color-acc-error)]"
-                title="Trim vector coordinate decimals to shrink streams"
-              />
-            </div>
-
-            <div class="compress-advanced__toggles">
-              <label class="compress-advanced__checkbox">
-                <span class="checkbox">
-                  <input
-                    type="checkbox"
-                    v-model="compressOptions.pruneFonts"
-                    @change="markCompressAdvancedDirty"
-                    title="Remove unused font definitions to trim file size"
-                  />
-                  <span class="checkbox__mark" />
-                </span>
-                Prune unused fonts
-              </label>
-              <label class="compress-advanced__checkbox">
-                <span class="checkbox">
-                  <input
-                    type="checkbox"
-                    v-model="compressOptions.recompressStreams"
-                    @change="markCompressAdvancedDirty"
-                    title="Recompress text drawing commands for leaner streams"
-                  />
-                  <span class="checkbox__mark" />
-                </span>
-                Recompress text streams
-              </label>
-            </div>
-
-            <div class="compress-advanced__foot">
-              <span class="text-xs text-text-muted">Tweaks apply on top of the selected preset.</span>
-              <UiButton
-                type="button"
-                size="sm"
-                variant="quiet"
-                class="compress-advanced__toggle-btn"
-                :disabled="!compressAdvancedDirty"
-                @click="resetCompressAdvanced"
-              >Reset to preset defaults</UiButton>
-            </div>
-          </div>
-
-          <div v-if="compressFile" class="compress-presets">
-            <button
-              v-for="preset in compressPresets"
-              :key="preset.key"
-              type="button"
-              class="compress-preset"
-              :class="{ 'compress-preset--active': compressPreset === preset.key }"
-              :disabled="isCompressing"
-              @click="compressPreset = preset.key"
-            >
-              <span class="compress-preset__label">{{ preset.label }}</span>
-              <span class="compress-preset__meta">{{ preset.helper }}</span>
-            </button>
-          </div>
-
-          <div v-if="isCompressing" class="merge-progress">
-            <div class="merge-progress__bar">
-              <div class="merge-progress__fill" :style="{ width: `${Math.round(compressProgress * 100)}%` }" />
-            </div>
-            <div class="merge-progress__label">
-              {{ compressStage || 'Compressing...' }}
-              <span v-if="compressProgress > 0"> · {{ Math.round(compressProgress * 100) }}%</span>
-            </div>
-          </div>
-
-          <UiButton
-            type="button"
-            size="md"
-            tone="accent"
-            :disabled="!canCompress"
-            @click="startCompression(compressPreset)"
-          >
-            Compress & Download
-          </UiButton>
-
-          <div v-if="compressReport" class="compress-report">
-            <div class="compress-report__header">
-              <div>
-                <span class="compress-report__label">Original</span>
-                <span class="compress-report__value">{{ formatFileSize(compressReport.originalBytes) }}</span>
-              </div>
-              <div>
-                <span class="compress-report__label">Output</span>
-                <span class="compress-report__value">{{ formatFileSize(compressReport.compressedBytes) }}</span>
-              </div>
-              <div>
-                <span class="compress-report__label">Saved</span>
-                <span class="compress-report__value">
-                  {{ compressSavings ? formatFileSize(compressSavings.savedBytes) : '0 B' }}
-                  <span v-if="compressSavings" class="text-text-secondary">({{ compressSavings.percent }})</span>
-                </span>
-              </div>
-            </div>
-            <div class="compress-report__grid">
-              <span><strong>{{ compressReport.fontsRemoved }}</strong> fonts removed</span>
-              <span><strong>{{ compressReport.imagesDownscaled }}</strong> images downscaled</span>
-              <span
-                class="compress-report__badge"
-                :class="{ 'compress-report__badge--warning': compressReport.rasterFallbackUsed }"
-              >
-                {{ compressReport.rasterFallbackUsed ? 'Raster fallback used' : 'Vectors preserved' }}
-              </span>
-            </div>
-            <div class="compress-report__options">
-              <span class="compress-report__option">Quality {{ Math.round(compressReport.options.imageQuality * 100) }}%</span>
-              <span class="compress-report__option">Max image {{ compressReport.options.maxImageDimension }}px</span>
-              <span class="compress-report__option">Precision {{ compressReport.options.coordinatePrecision }} dec.</span>
-              <span class="compress-report__option">{{ compressReport.options.pruneFonts ? 'Fonts pruned' : 'Fonts preserved' }}</span>
-            </div>
-            <div v-if="hasCompressionDetails" class="compress-report__details">
-              <section v-if="compressMetadataRemoved.length" class="compress-report__group">
-                <h4 class="compress-report__group-title">Metadata removed</h4>
-                <ul>
-                  <li v-for="(item, index) in compressMetadataRemoved" :key="`${item}-${index}`">{{ item }}</li>
-                </ul>
-              </section>
-              <section v-if="compressFontsRemovedList.length" class="compress-report__group">
-                <h4 class="compress-report__group-title">Fonts removed</h4>
-                <ul>
-                  <li v-for="(item, index) in compressFontsRemovedList" :key="`${item}-${index}`">{{ item }}</li>
-                </ul>
-              </section>
-              <section v-if="compressImageHighlights.length" class="compress-report__group">
-                <header class="compress-report__group-meta">
-                  <h4 class="compress-report__group-title">Images optimised</h4>
-                  <span class="compress-report__group-saved">Saved {{ compressImageBytesSavedLabel }}</span>
-                </header>
-                <ul>
-                  <li
-                    v-for="(change, index) in compressImageHighlights"
-                    :key="`${change.name ?? 'image'}-${index}`"
-                  >
-                    <span class="compress-report__detail-name">{{ change.name ?? `Image ${index + 1}` }}</span>
-                    <span class="compress-report__detail-meta">
-                      {{ change.before.width }}×{{ change.before.height }} → {{ change.after.width }}×{{ change.after.height }}
-                    </span>
-                    <span class="compress-report__detail-saved">Saved {{ formatFileSize(change.savedBytes) }}</span>
-                  </li>
-                </ul>
-              </section>
-            </div>
+          <div class="flex flex-wrap gap-2">
+            <UiButton type="button" size="sm" :disabled="isSplitting || !splitPages.length" @click="selectAllSplitPages">Select All</UiButton>
+            <UiButton type="button" size="sm" variant="quiet" :disabled="isSplitting || !splitPages.length" @click="clearSplitSelection">Clear</UiButton>
+            <UiButton type="button" size="sm" variant="quiet" :disabled="isSplitting || !splitPages.length" @click="invertSplitSelection">Invert</UiButton>
           </div>
         </div>
-      </UiPanel>
 
-      <UiPanel class="col-span-12 lg:col-span-6">
-        <template #header>
-          <span class="body-text uppercase tracking-wider text-text-secondary">Next Up</span>
-        </template>
-        <ul class="space-y-3 body-text text-text-secondary uppercase tracking-wide">
-          <li>Enable keyboard + range shortcuts in split selection</li>
-          <li>Persist thumbnail cache with storage guardrails</li>
-          <li>Prototype PDF compression presets with real optimisation</li>
-        </ul>
-      </UiPanel>
+        <!-- Page Grid -->
+        <div v-if="splitPages.length" ref="splitPagesContainer">
+          <SplitPageGrid
+            :pages="splitPages"
+            :disabled="isSplitting"
+            @toggle-page="toggleSplitPage"
+            @select-range="selectSplitPageRange"
+          />
+        </div>
 
-      <UiPanel class="col-span-12 lg:col-span-6">
-        <template #header>
-          <span class="body-text uppercase tracking-wider text-text-secondary">Ideas Backlog</span>
-        </template>
-        <ul class="space-y-3 body-text text-text-muted">
-          <li>Annotate, redact, and sign PDFs</li>
-          <li>OCR pipelines for scanned documents</li>
-          <li>Watermarks, passwords, and permissions</li>
-        </ul>
-      </UiPanel>
+        <!-- Progress Bar -->
+        <ProgressBar
+          v-if="isSplitting"
+          :progress="splitProgress"
+          :label="splitStage || 'Extracting...'"
+        />
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap gap-3">
+          <UiButton
+            type="button"
+            size="lg"
+            tone="accent"
+            variant="solid"
+            :disabled="!canSplit"
+            @click="startSplit('single')"
+          >
+            Export as single PDF
+          </UiButton>
+          <UiButton
+            type="button"
+            size="lg"
+            variant="quiet"
+            :disabled="!canSplit"
+            @click="startSplit('individual')"
+          >
+            Download selected pages (ZIP)
+          </UiButton>
+        </div>
+      </WorkflowSection>
+
+      <WorkflowSection
+        title="Organize Pages"
+        subtitle="Reorder, rotate, or remove pages before exporting"
+        :icon="Grid3x3"
+        colspan="12 lg:col-span-6"
+        :supports-drop="true"
+        @drop="handleOrganizeDropZoneDrop"
+      >
+        <!-- Source PDF Selector -->
+        <PdfSourceSelector
+          :queue-items="pdfQueue"
+          :selected-id="organizeSourceId"
+          :disabled="isOrganizing"
+          @select="handleOrganizeSelection"
+          @clear="resetOrganize"
+        />
+
+        <!-- File Meta Info -->
+        <div v-if="organizeFile" class="flex flex-col gap-2">
+          <span class="mono text-text-primary">
+            {{ organizeFile.name }} · {{ formatFileSize(organizeFile.size) }}
+          </span>
+          <span v-if="organizeLastOutputName" class="body-text text-text-secondary text-sm">
+            Last output: {{ organizeLastOutputName }}
+          </span>
+        </div>
+
+        <!-- Instructions -->
+        <p v-if="organizeFile" class="body-text text-text-muted text-sm">
+          Drag thumbnails to reorder pages. Rotate or remove any page before exporting the new PDF.
+        </p>
+
+        <!-- Organize Grid -->
+        <div v-if="organizePages.length > 0" ref="organizePagesContainer">
+          <OrganizeGrid
+            :pages="organizePages"
+            :disabled="isOrganizing"
+            @rotate="rotateOrganizePage"
+            @toggle-remove="toggleOrganizePageRemoved"
+            @reorder="handleOrganizeReorder"
+          />
+        </div>
+
+        <!-- Progress Bar -->
+        <ProgressBar
+          v-if="isOrganizing"
+          :progress="organizeProgress"
+          :label="organizeStage || 'Preparing...'"
+        />
+
+        <!-- Action Button -->
+        <UiButton
+          type="button"
+          size="lg"
+          tone="accent"
+          variant="solid"
+          :disabled="!organizeCanExport"
+          @click="startOrganize"
+        >
+          Export Organised PDF
+        </UiButton>
+      </WorkflowSection>
+
+      <WorkflowSection
+        title="Compress PDF"
+        subtitle="Shrink PDFs with tuned presets"
+        :icon="Gauge"
+        colspan="12 lg:col-span-6"
+        :supports-drop="true"
+        @drop="handleCompressDropZoneDrop"
+      >
+        <!-- Source PDF Selector -->
+        <PdfSourceSelector
+          :queue-items="pdfQueue"
+          :selected-id="compressSourceId"
+          :disabled="isCompressing"
+          @select="handleCompressSelection"
+          @clear="resetCompression"
+        />
+
+        <!-- File Meta Info -->
+        <div v-if="compressFile" class="flex flex-col gap-2">
+          <span class="mono text-text-primary">
+            {{ compressFile.name }} · {{ formatFileSize(compressFile.size) }}
+          </span>
+          <span v-if="compressSavings" class="body-text text-text-secondary text-sm">
+            Saved {{ compressSavings.percent }} · {{ formatFileSize(compressSavings.savedBytes) }}
+          </span>
+          <span v-else-if="lastCompressedName" class="body-text text-text-secondary text-sm">
+            Last output: {{ lastCompressedName }}
+          </span>
+        </div>
+
+        <!-- Description -->
+        <div class="flex flex-col gap-3">
+          <p class="body-text text-text-muted text-sm">
+            All compression runs locally in your browser worker—drop in a PDF, select a preset, and download the optimised result.
+          </p>
+          <p class="body-text text-text-secondary text-xs">
+            Light and Balanced keep vector text intact by compressing embedded images; Smallest falls back to rasterising pages when necessary.
+          </p>
+        </div>
+
+        <!-- Advanced Controls Toggle -->
+        <div class="flex items-center justify-between gap-3">
+          <UiButton
+            type="button"
+            size="sm"
+            variant="quiet"
+            @click="toggleCompressAdvanced"
+          >
+            {{ compressAdvancedOpen ? 'Hide advanced controls' : 'Advanced controls' }}
+          </UiButton>
+        </div>
+
+        <!-- Advanced Controls -->
+        <CompressAdvancedControls
+          v-model="compressOptions"
+          :is-open="compressAdvancedOpen"
+          :is-dirty="compressAdvancedDirty"
+          @reset="resetCompressAdvanced"
+        />
+
+        <!-- Presets (only show when file is selected) -->
+        <div v-if="compressFile">
+          <PdfPresetSelector
+            v-model="compressPreset"
+            :presets="compressPresetsFormatted"
+            :disabled="isCompressing"
+            :hint="compressPresetHints[compressPreset]"
+          />
+        </div>
+
+        <!-- Progress Bar -->
+        <ProgressBar
+          v-if="isCompressing"
+          :progress="compressProgress"
+          :label="compressStage || 'Compressing...'"
+        />
+
+        <!-- Action Button -->
+        <UiButton
+          type="button"
+          size="lg"
+          tone="accent"
+          variant="solid"
+          :disabled="!canCompress"
+          @click="startCompression(compressPreset)"
+        >
+          Compress & Download
+        </UiButton>
+
+        <!-- Compression Report -->
+        <CompressReport :stats="compressReport" />
+      </WorkflowSection>
+
     </div>
   </div>
 
@@ -776,31 +410,34 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
-import type { ComponentPublicInstance } from 'vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiPanel from '@/components/ui/UiPanel.vue'
+import UiCheckbox from '@/components/ui/UiCheckbox.vue'
+import DropZone from '@/components/DropZone.vue'
+import WorkflowSection from '@/components/WorkflowSection.vue'
+import PdfSourceSelector from '@/components/PdfSourceSelector.vue'
+import PdfPresetSelector from '@/components/PdfPresetSelector.vue'
+import PdfQueueList from '@/components/PdfQueueList.vue'
+import MergeList from '@/components/MergeList.vue'
+import SplitPageGrid from '@/components/SplitPageGrid.vue'
+import OrganizeGrid from '@/components/OrganizeGrid.vue'
+import ProgressBar from '@/components/ProgressBar.vue'
+import CompressAdvancedControls from '@/components/CompressAdvancedControls.vue'
+import CompressReport from '@/components/CompressReport.vue'
 import { useToastStore } from '@/app/stores/toast'
 import { pdfWorkerPool } from '@/workers/pdfWorkerPool'
 import { downloadAsZip, downloadFile, generateFileId } from '@/utils/file'
 import { formatFileSize } from '@/utils/format'
-import { FileText, Upload, ArrowUp, ArrowDown, Trash2, Scissors, Gauge, Eye, Grid3x3, RotateCcw, RotateCw, Undo2 } from 'lucide-vue-next'
+import { FileText, Upload, Scissors, Gauge, Grid3x3, ListX } from 'lucide-vue-next'
 import ImagePreviewModal from '@/components/ImagePreviewModal.vue'
 import type { Job, PdfCompressionStats } from '@/workers/types'
-
-interface OperationCard {
-  key: string
-  title: string
-  description: string
-  status: 'In progress' | 'Planned'
-  cta: string
-  disabled: boolean
-}
 
 interface MergeItem {
   id: string
   file: File
   thumbnail: string | null
   loading: boolean
+  sourceId?: string
 }
 
 interface OrganizePage {
@@ -811,6 +448,15 @@ interface OrganizePage {
   thumbnail: string | null
   loading: boolean
 }
+
+interface PdfQueueItem {
+  id: string
+  file: File
+  thumbnail?: string | null
+  loading?: boolean
+}
+
+type MergeQueueEntry = File | { file: File; sourceId?: string }
 
 const compressPresets = [
   {
@@ -839,69 +485,17 @@ const compressPresetDefaults: Record<CompressPresetKey, { imageQuality: number; 
 }
 
 const toastStore = useToastStore()
+const QUEUE_DRAG_MIME = 'application/x-shifteo-queue-id'
 
-const operations: OperationCard[] = [
-  {
-    key: 'merge',
-    title: 'Merge PDFs',
-    description: 'Combine multiple PDFs into a single document with custom ordering.',
-    status: 'In progress',
-    cta: 'Start Merge',
-    disabled: false
-  },
-  {
-    key: 'split',
-    title: 'Split / Extract',
-    description: 'Select ranges or individual pages to export into new documents.',
-    status: 'In progress',
-    cta: 'Start Split',
-    disabled: false
-  },
-  {
-    key: 'organize',
-    title: 'Organize Pages',
-    description: 'Drag to reorder, rotate, duplicate, or delete pages visually.',
-    status: 'Planned',
-    cta: 'Organize Pages',
-    disabled: true
-  },
-  {
-    key: 'compress',
-    title: 'Compress',
-    description: 'Balance quality and size with smart image recompression.',
-    status: 'In progress',
-    cta: 'Compress PDF',
-    disabled: false
-  },
-  {
-    key: 'export-images',
-    title: 'PDF → Images',
-    description: 'Export pages to PNG, JPEG, or WebP—ideal for sharing or web use.',
-    status: 'Planned',
-    cta: 'Export Pages',
-    disabled: true
-  },
-  {
-    key: 'images-to-pdf',
-    title: 'Images → PDF',
-    description: 'Batch convert images into a printable PDF with custom sizing.',
-    status: 'Planned',
-    cta: 'Create PDF',
-    disabled: true
-  }
-]
+const pdfQueue = ref<PdfQueueItem[]>([])
 
 const mergeFiles = ref<MergeItem[]>([])
 const mergeStage = ref('')
 const mergeProgress = ref(0)
 const isMerging = ref(false)
 const lastResultName = ref<string | null>(null)
-const fileInputRef = ref<HTMLInputElement | null>(null)
-const dragSourceId = ref<string | null>(null)
-const dragOverId = ref<string | null>(null)
-
 const compressFile = ref<File | null>(null)
-const compressInputRef = ref<HTMLInputElement | null>(null)
+const compressSourceId = ref<string | null>(null)
 const compressPreset = ref<CompressPresetKey>('light')
 const isCompressing = ref(false)
 const compressStage = ref('')
@@ -928,7 +522,7 @@ let compressPreviewCompressedRequest = 0
 const compressResultBlob = ref<Blob | null>(null)
 
 const organizeFile = ref<File | null>(null)
-const organizeInputRef = ref<HTMLInputElement | null>(null)
+const organizeSourceId = ref<string | null>(null)
 const organizeStage = ref('')
 const organizeProgress = ref(0)
 const isOrganizing = ref(false)
@@ -941,6 +535,9 @@ const organizeObservedElements = new Map<number, HTMLElement>()
 const organizeThumbnailPromises = new Map<number, Promise<void>>()
 const organizeDragSourceId = ref<number | null>(null)
 const organizeDragOverId = ref<number | null>(null)
+let organizeLoadToken = 0
+
+const isPageDragging = ref(false)
 
 interface StoredCompressAdvancedOptions {
   imageQuality: number
@@ -1048,67 +645,25 @@ onMounted(() => {
 })
 
 const splitFile = ref<File | null>(null)
+const splitSourceId = ref<string | null>(null)
 const splitThumbnail = ref<string | null>(null)
 const splitPageCount = ref<number | null>(null)
 const splitStage = ref('')
 const splitProgress = ref(0)
 const isSplitting = ref(false)
-const splitInputRef = ref<HTMLInputElement | null>(null)
 const splitPages = ref<Array<{ index: number; thumbnail: string | null; loading: boolean; selected: boolean }>>([])
 const splitPagesContainer = ref<HTMLDivElement | null>(null)
 const splitPdfDoc = shallowRef<any | null>(null)
 const splitObserver = shallowRef<IntersectionObserver | null>(null)
 const splitObservedElements = new Map<number, HTMLElement>()
 const splitThumbnailPromises = new Map<number, Promise<void>>()
-const splitDragActive = ref(false)
-const splitDragMode = ref<'select' | 'deselect' | null>(null)
-const splitLastHovered = ref<number | null>(null)
 let splitObserverRoot: HTMLElement | null = null
+let splitLoadToken = 0
 
 const hasFiles = computed(() => mergeFiles.value.length > 0)
 const canMerge = computed(() => mergeFiles.value.length >= 2 && !isMerging.value)
 const totalSize = computed(() => mergeFiles.value.reduce((sum, item) => sum + item.file.size, 0))
 const canCompress = computed(() => compressFile.value !== null && !isCompressing.value)
-const compressOriginalBytes = computed(() => {
-  if (compressReport.value) return compressReport.value.originalBytes
-  const file = compressFile.value
-  return file ? file.size : 0
-})
-const compressCompressedBytes = computed(() => {
-  if (compressReport.value) return compressReport.value.compressedBytes
-  const stats = compressStats.value
-  return stats ? stats.result : 0
-})
-const compressOriginalSizeLabel = computed(() => {
-  const value = compressOriginalBytes.value
-  return value > 0 ? formatFileSize(value) : '—'
-})
-const compressCompressedSizeLabel = computed(() => {
-  const value = compressCompressedBytes.value
-  return value > 0 ? formatFileSize(value) : '—'
-})
-const canOpenPreview = computed(() => Boolean(
-  compressPreviewOriginalBlob.value &&
-  compressPreviewCompressedBlob.value &&
-  !compressPreviewLoadingOriginal.value &&
-  !compressPreviewLoadingCompressed.value &&
-  !isCompressing.value
-))
-const compressMetadataRemoved = computed(() => compressReport.value?.details.metadataKeysRemoved ?? [])
-const compressFontsRemovedList = computed(() => compressReport.value?.details.fontsRemoved ?? [])
-const compressImageHighlights = computed(() => {
-  const items = compressReport.value?.details.imageChanges ?? []
-  return items.slice(0, 4)
-})
-const compressImageBytesSavedLabel = computed(() => {
-  const value = compressReport.value?.details.imageBytesSaved ?? 0
-  return value > 0 ? formatFileSize(value) : '—'
-})
-const hasCompressionDetails = computed(() =>
-  compressMetadataRemoved.value.length > 0
-  || compressFontsRemovedList.value.length > 0
-  || compressImageHighlights.value.length > 0
-)
 const compressPreviewJob = computed<Job | null>(() => {
   const originalBlob = compressPreviewOriginalBlob.value
   const compressedBlob = compressPreviewCompressedBlob.value
@@ -1136,8 +691,47 @@ const compressPreviewJob = computed<Job | null>(() => {
 })
 const organizeActivePages = computed(() => organizePages.value.filter(page => !page.removed))
 const organizeCanExport = computed(() => organizeFile.value !== null && !isOrganizing.value && organizeActivePages.value.length > 0)
+
 const selectedSplitCount = computed(() => splitPages.value.filter(page => page.selected).length)
 const canSplit = computed(() => splitFile.value !== null && !isSplitting.value && selectedSplitCount.value > 0)
+const mergeSourceIds = computed(() => {
+  const sources = mergeFiles.value
+    .map(item => item.sourceId)
+    .filter((value): value is string => Boolean(value))
+  return new Set(sources)
+})
+const queueAssignments = computed(() => {
+  const map = new Map<string, string[]>()
+  for (const item of pdfQueue.value) {
+    map.set(item.id, [])
+  }
+
+  for (const item of mergeFiles.value) {
+    if (!item.sourceId) continue
+    map.get(item.sourceId)?.push('Merge')
+  }
+
+  if (splitSourceId.value) {
+    map.get(splitSourceId.value)?.push('Extract')
+  }
+
+  if (organizeSourceId.value) {
+    map.get(organizeSourceId.value)?.push('Organise')
+  }
+
+  if (compressSourceId.value) {
+    map.get(compressSourceId.value)?.push('Compress')
+  }
+
+  return map
+})
+const isQueueLocked = computed(() => isMerging.value || isSplitting.value || isOrganizing.value || isCompressing.value)
+const queueDragItemId = ref<string | null>(null)
+const mergeDropActive = ref(false)
+const splitDropActive = ref(false)
+const organizeDropActive = ref(false)
+const compressDropActive = ref(false)
+// organizePickerOpen is now managed internally by PdfSourceSelector
 
 watch(compressPreset, (preset) => {
   const appliedStored = applyPresetDefaults(preset)
@@ -1146,6 +740,11 @@ watch(compressPreset, (preset) => {
     persistAdvancedOptions()
   }
 })
+
+watch(compressOptions, () => {
+  compressAdvancedDirty.value = true
+  persistAdvancedOptions()
+}, { deep: true })
 
 const compressSavings = computed(() => {
   const stats = compressStats.value
@@ -1174,13 +773,22 @@ const compressSavings = computed(() => {
   }
 })
 
-function toggleCompressAdvanced() {
-  compressAdvancedOpen.value = !compressAdvancedOpen.value
+const compressPresetsFormatted = computed(() => {
+  return compressPresets.map(p => ({
+    key: p.key,
+    label: p.label.toUpperCase(),
+    desc: p.key === 'light' ? 'GENTLE' : p.key === 'balanced' ? 'OPTIMIZED' : 'AGGRESSIVE'
+  }))
+})
+
+const compressPresetHints: Record<string, string> = {
+  light: 'Keep text sharp while trimming metadata and gently resampling images.',
+  balanced: 'Downscale images to ~150 dpi and preserve vectors for viewing and print.',
+  small: 'Aggressive image crunching with raster fallback when stubborn pages resist.'
 }
 
-function markCompressAdvancedDirty() {
-  compressAdvancedDirty.value = true
-  persistAdvancedOptions()
+function toggleCompressAdvanced() {
+  compressAdvancedOpen.value = !compressAdvancedOpen.value
 }
 
 function resetCompressAdvanced() {
@@ -1188,14 +796,6 @@ function resetCompressAdvanced() {
   removeAdvancedOptionsForPreset(preset)
   applyPresetDefaults(preset, false)
   compressAdvancedDirty.value = false
-}
-
-function openCompressPreview() {
-  if (!compressPreviewJob.value) {
-    toastStore.info('Preview Unavailable', 'Run a compression to generate comparison imagery first.')
-    return
-  }
-  compressPreviewModalOpen.value = true
 }
 
 function closeCompressPreview() {
@@ -1280,54 +880,114 @@ async function generateCompressedPreview(blob: Blob) {
   }
 }
 
-function handleOperation(operation: OperationCard) {
-  if (operation.key === 'merge') {
-    triggerFileDialog()
-    return
-  }
-  if (operation.key === 'split') {
-    triggerSplitFileDialog()
-    return
-  }
-  if (operation.key === 'organize') {
-    triggerOrganizeFileDialog()
-    return
-  }
-  if (operation.key === 'compress') {
-    triggerCompressFileDialog()
-    return
-  }
-  toastStore.info('Coming Soon', `${operation.title} is on the roadmap—follow docs/pdf-roadmap.md for updates.`)
-}
+function enqueueMergeFiles(entries: MergeQueueEntry[]) {
+  if (!entries.length) return
 
-function statusTone(status: OperationCard['status']) {
-  return status === 'In progress' ? 'pdf-card__status--active' : 'pdf-card__status--idle'
-}
+  const dedupeKeys = new Set<string>()
+  mergeFiles.value.forEach((item) => {
+    const key = item.sourceId ?? `${item.file.name}-${item.file.size}`
+    dedupeKeys.add(key)
+  })
 
-function triggerFileDialog() {
-  if (isMerging.value) return
-  fileInputRef.value?.click()
-}
-
-function triggerSplitFileDialog() {
-  if (isSplitting.value) return
-  splitInputRef.value?.click()
-}
-
-function triggerCompressFileDialog() {
-  if (isCompressing.value) return
-  compressInputRef.value?.click()
-}
-
-function handleFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  if (!input.files) return
-
-  const incoming = Array.from(input.files)
-  const existingKeys = new Set(mergeFiles.value.map(item => `${item.file.name}-${item.file.size}`))
   let added = 0
+  let duplicateCount = 0
+  let skippedCount = 0
 
-  for (const file of incoming) {
+  for (const entry of entries) {
+    const file = entry instanceof File ? entry : entry.file
+    const sourceId = entry instanceof File ? undefined : entry.sourceId
+
+    if (file.type !== 'application/pdf') {
+      skippedCount++
+      continue
+    }
+
+    const key = sourceId ?? `${file.name}-${file.size}`
+    if (dedupeKeys.has(key)) {
+      duplicateCount++
+      continue
+    }
+
+    dedupeKeys.add(key)
+    const newItem: MergeItem = { id: generateFileId(), file, thumbnail: null, loading: true, sourceId }
+    mergeFiles.value = [...mergeFiles.value, newItem]
+
+    generatePdfThumbnail(file)
+      .then((url) => {
+        const target = mergeFiles.value.find(item => item.id === newItem.id)
+        if (target) {
+          target.thumbnail = url
+          target.loading = false
+        }
+      })
+      .catch(() => {
+        const target = mergeFiles.value.find(item => item.id === newItem.id)
+        if (target) {
+          target.thumbnail = null
+          target.loading = false
+        }
+      })
+
+    added++
+  }
+
+  if (added > 0) {
+    toastStore.success('Files Added', `${added} PDF${added > 1 ? 's' : ''} ready to merge`)
+  }
+  if (duplicateCount > 0) {
+    toastStore.info('Already Queued', `${duplicateCount} PDF${duplicateCount > 1 ? 's were' : ' was'} already in the merge order`)
+  }
+  if (skippedCount > 0) {
+    toastStore.warning('Skipped File', `${skippedCount} item${skippedCount > 1 ? 's were' : ' was'} skipped because they are not PDFs`)
+  }
+}
+
+function clearPageDragState() {
+  isPageDragging.value = false
+}
+
+function handleQueueFilesSelected(files: File[]) {
+  addFilesToQueue(files)
+}
+
+function hasFilePayload(event: DragEvent) {
+  return Array.from(event.dataTransfer?.types ?? []).includes('Files')
+}
+
+function handlePageDragEnter(event: DragEvent) {
+  if (!hasFilePayload(event)) return
+  isPageDragging.value = true
+}
+
+function handlePageDragOver(event: DragEvent) {
+  if (!hasFilePayload(event)) return
+  event.preventDefault()
+}
+
+function handlePageDragLeave(event: DragEvent) {
+  const current = event.currentTarget as HTMLElement | null
+  const related = event.relatedTarget as Node | null
+  if (current && related && current.contains(related)) {
+    return
+  }
+  isPageDragging.value = false
+}
+
+function handlePageDrop(event: DragEvent) {
+  const files = Array.from(event.dataTransfer?.files ?? [])
+  isPageDragging.value = false
+  if (!files.length) return
+  handleQueueFilesSelected(files)
+}
+
+function addFilesToQueue(files: File[]) {
+  if (!files.length) return
+
+  const existingKeys = new Set(pdfQueue.value.map(item => `${item.file.name}-${item.file.size}`))
+  let added = 0
+  let duplicateCount = 0
+
+  for (const file of files) {
     if (file.type !== 'application/pdf') {
       toastStore.warning('Skipped File', `${file.name} is not a PDF`)
       continue
@@ -1335,51 +995,281 @@ function handleFileChange(event: Event) {
 
     const key = `${file.name}-${file.size}`
     if (existingKeys.has(key)) {
-      toastStore.info('Already Added', `${file.name} is already queued`)
+      duplicateCount++
       continue
     }
 
     existingKeys.add(key)
-    const newItem: MergeItem = { id: generateFileId(), file, thumbnail: null, loading: true }
-    mergeFiles.value = [...mergeFiles.value, newItem]
-    generatePdfThumbnail(file).then((url) => {
-      const target = mergeFiles.value.find(item => item.id === newItem.id)
-      if (target) {
-        target.thumbnail = url
-        target.loading = false
-      }
-    }).catch(() => {
-      const target = mergeFiles.value.find(item => item.id === newItem.id)
-      if (target) {
-        target.thumbnail = null
-        target.loading = false
-      }
-    })
+    const item: PdfQueueItem = { id: generateFileId(), file, thumbnail: null, loading: true }
+    pdfQueue.value = [...pdfQueue.value, item]
+
+    generatePdfThumbnail(file)
+      .then((url) => {
+        const target = pdfQueue.value.find(entry => entry.id === item.id)
+        if (target) {
+          target.thumbnail = url
+          target.loading = false
+        }
+      })
+      .catch(() => {
+        const target = pdfQueue.value.find(entry => entry.id === item.id)
+        if (target) {
+          target.thumbnail = null
+          target.loading = false
+        }
+      })
+
     added++
   }
 
   if (added > 0) {
-    toastStore.success('Files Added', `${added} PDF${added > 1 ? 's' : ''} ready to merge`)
+    toastStore.success('PDFs Added', `${added} PDF${added > 1 ? 's' : ''} added to queue`)
   }
-
-  input.value = ''
+  if (duplicateCount > 0) {
+    toastStore.info('Already Queued', `${duplicateCount} PDF${duplicateCount > 1 ? 's were' : ' was'} already in the queue`)
+  }
 }
 
-function handleCompressFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const fileList = input.files
-  if (!fileList || fileList.length === 0) return
+function findQueueItem(id: string) {
+  return pdfQueue.value.find(item => item.id === id) ?? null
+}
 
-  const file = fileList.item(0)
-  if (!file) return
-
-  if (file.type !== 'application/pdf') {
-    toastStore.error('Unsupported File', 'Please select a PDF document to compress')
-    input.value = ''
+function assignQueueItemToMerge(id: string) {
+  if (isMerging.value) {
+    toastStore.info('Merge Running', 'Wait for the current merge to finish before adding more PDFs.')
     return
   }
+  if (mergeSourceIds.value.has(id)) {
+    return
+  }
+  const item = findQueueItem(id)
+  if (!item) {
+    toastStore.info('Not Available', 'Selected queue item is no longer available')
+    return
+  }
+  enqueueMergeFiles([{ file: item.file, sourceId: id }])
+}
 
+function removeQueueItemFromMerge(id: string) {
+  if (isMerging.value) return
+  if (!mergeSourceIds.value.has(id)) return
+  mergeFiles.value = mergeFiles.value.filter(item => item.sourceId !== id)
+  toastStore.info('Removed from Merge', 'Item removed from merge order')
+}
+
+function handleMergeCheckbox(id: string, checked: boolean) {
+  if (checked) {
+    assignQueueItemToMerge(id)
+  } else {
+    removeQueueItemFromMerge(id)
+  }
+}
+
+function handleSplitSelection(id: string) {
+  if (isSplitting.value) {
+    toastStore.info('Split Running', 'Wait for extraction to finish before switching PDFs.')
+    return
+  }
+  if (!id) {
+    resetSplitQueue()
+    return
+  }
+  if (splitSourceId.value === id) {
+    return
+  }
+  const item = findQueueItem(id)
+  if (!item) {
+    toastStore.info('Not Available', 'Selected queue item is no longer available')
+    resetSplitQueue()
+    return
+  }
+  void loadSplitFile(item.file, id)
+}
+
+function handleOrganizeSelection(id: string) {
+  if (isOrganizing.value) {
+    toastStore.info('Organising', 'Please wait for the current export to finish.')
+    return
+  }
+  if (!id) {
+    resetOrganize()
+    return
+  }
+  if (organizeSourceId.value === id) {
+    return
+  }
+  const item = findQueueItem(id)
+  if (!item) {
+    toastStore.info('Not Available', 'Selected queue item is no longer available')
+    resetOrganize()
+    return
+  }
+  void loadOrganizeFile(item.file, id)
+}
+
+function handleCompressSelection(id: string) {
+  if (isCompressing.value) {
+    toastStore.info('Compression Running', 'Wait for the current job to finish before switching PDFs.')
+    return
+  }
+  if (!id) {
+    resetCompression()
+    return
+  }
+  if (compressSourceId.value === id) {
+    return
+  }
+  const item = findQueueItem(id)
+  if (!item) {
+    toastStore.info('Not Available', 'Selected queue item is no longer available')
+    resetCompression()
+    return
+  }
+  loadCompressFile(item.file, id)
+}
+
+function isQueueDrag(event: DragEvent): boolean {
+  const types = Array.from(event.dataTransfer?.types ?? [])
+  return types.includes(QUEUE_DRAG_MIME) || types.includes('text/plain') && !!queueDragItemId.value
+}
+
+function readQueueDragId(event: DragEvent): string | null {
+  const dataTransfer = event.dataTransfer
+  if (!dataTransfer) return queueDragItemId.value
+  const id = dataTransfer.getData(QUEUE_DRAG_MIME) || dataTransfer.getData('text/plain')
+  return id || queueDragItemId.value
+}
+
+function handleQueueDragStart(event: DragEvent, id: string) {
+  if (event.dataTransfer) {
+    event.dataTransfer.setData(QUEUE_DRAG_MIME, id)
+    event.dataTransfer.setData('text/plain', id)
+    event.dataTransfer.effectAllowed = 'copy'
+  }
+  queueDragItemId.value = id
+}
+
+function handleQueueDragEnd() {
+  queueDragItemId.value = null
+  mergeDropActive.value = false
+  splitDropActive.value = false
+  organizeDropActive.value = false
+  compressDropActive.value = false
+}
+
+// All picker state is now managed internally by PdfSourceSelector components
+
+// Merge drop zone drag handlers removed (now handled by WorkflowSection)
+
+function handleMergeDropZoneDrop(event: DragEvent) {
+  if (!isQueueDrag(event)) return
+  event.preventDefault()
+  mergeDropActive.value = false
+  const id = readQueueDragId(event)
+  if (!id) return
+  assignQueueItemToMerge(id)
+}
+
+// Split drop zone drag handlers removed (now handled by WorkflowSection)
+
+function handleSplitDropZoneDrop(event: DragEvent) {
+  if (!isQueueDrag(event)) return
+  event.preventDefault()
+  splitDropActive.value = false
+  const id = readQueueDragId(event)
+  if (!id) return
+  handleSplitSelection(id)
+}
+
+// Organize drop zone drag handlers removed (now handled by WorkflowSection)
+
+function handleOrganizeDropZoneDrop(event: DragEvent) {
+  if (!isQueueDrag(event)) return
+  event.preventDefault()
+  organizeDropActive.value = false
+  const id = readQueueDragId(event)
+  if (!id) return
+  handleOrganizeSelection(id)
+}
+
+// Compress drop zone drag handlers removed (now handled by WorkflowSection)
+
+function handleCompressDropZoneDrop(event: DragEvent) {
+  if (!isQueueDrag(event)) return
+  event.preventDefault()
+  compressDropActive.value = false
+  const id = readQueueDragId(event)
+  if (!id) return
+  handleCompressSelection(id)
+}
+
+function previewQueueItem(item: PdfQueueItem) {
+  if (typeof window === 'undefined') return
+  const url = URL.createObjectURL(item.file)
+  const opened = window.open(url, '_blank', 'noopener')
+  if (!opened) {
+    toastStore.info('Preview blocked', 'Allow popups to preview PDFs in a new tab.')
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+function downloadQueueItem(item: PdfQueueItem) {
+  void downloadFile(item.file, item.file.name)
+}
+
+function removeQueueItem(id: string) {
+  if (isQueueLocked.value) return
+
+  const item = findQueueItem(id)
+  if (!item) return
+
+  if (mergeSourceIds.value.has(id)) {
+    mergeFiles.value = mergeFiles.value.filter(entry => entry.sourceId !== id)
+  }
+
+  if (splitSourceId.value === id && !isSplitting.value) {
+    resetSplitQueue()
+  }
+
+  if (organizeSourceId.value === id && !isOrganizing.value) {
+    resetOrganize()
+  }
+
+  if (compressSourceId.value === id && !isCompressing.value) {
+    resetCompression()
+  }
+
+  pdfQueue.value = pdfQueue.value.filter(entry => entry.id !== id)
+  toastStore.info('Removed from Queue', `${item.file.name} removed`)
+}
+
+function clearPdfQueue() {
+  if (isQueueLocked.value) return
+
+  pdfQueue.value = []
+
+  if (!isMerging.value) {
+    resetQueue()
+  }
+
+  if (!isSplitting.value) {
+    resetSplitQueue()
+  }
+
+  if (!isOrganizing.value) {
+    resetOrganize()
+  }
+
+  if (!isCompressing.value) {
+    resetCompression()
+  }
+
+  toastStore.info('Queue Cleared', 'All queued PDFs removed')
+}
+
+function loadCompressFile(file: File, sourceId?: string) {
   compressFile.value = file
+  compressSourceId.value = sourceId ?? null
   compressPreset.value = 'light'
   compressAdvancedOpen.value = false
   const appliedStored = applyPresetDefaults(compressPreset.value)
@@ -1401,7 +1291,6 @@ function handleCompressFileChange(event: Event) {
   compressPreviewLoadingOriginal.value = false
   compressPreviewLoadingCompressed.value = false
   void generateOriginalCompressionPreview(file)
-  input.value = ''
 }
 
 function removeItem(id: string) {
@@ -1424,47 +1313,12 @@ function moveItem(id: string, direction: 'up' | 'down') {
   mergeFiles.value = items
 }
 
-function handleDragStart(event: DragEvent, id: string) {
-  if (isMerging.value) return
-  dragSourceId.value = id
-  event.dataTransfer?.setData('text/plain', id)
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move'
-  }
-}
-
-function handleDragOver(event: DragEvent, id: string) {
-  if (isMerging.value) return
-  event.preventDefault()
-  dragOverId.value = id
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move'
-  }
-}
-
-function handleDragEnter(event: DragEvent, id: string) {
-  if (isMerging.value) return
-  event.preventDefault()
-  const current = dragOverId.value
-  if (current !== id) {
-    dragOverId.value = id
-  }
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move'
-  }
-}
-
-function handleDrop(event: DragEvent, id: string) {
-  if (isMerging.value) return
-  event.preventDefault()
-  const sourceId = dragSourceId.value
-  dragSourceId.value = null
-  dragOverId.value = null
-  if (!sourceId || sourceId === id) return
+function handleMergeReorder(sourceId: string, targetId: string) {
+  if (!sourceId || sourceId === targetId) return
 
   const items = [...mergeFiles.value]
   const sourceIndex = items.findIndex(item => item.id === sourceId)
-  const targetIndex = items.findIndex(item => item.id === id)
+  const targetIndex = items.findIndex(item => item.id === targetId)
   if (sourceIndex === -1 || targetIndex === -1) return
   const moved = items.splice(sourceIndex, 1)[0]
   if (!moved) return
@@ -1472,22 +1326,7 @@ function handleDrop(event: DragEvent, id: string) {
   mergeFiles.value = items
 }
 
-function handleDragEnd() {
-  dragSourceId.value = null
-  dragOverId.value = null
-}
-
-function handleDragLeave(event: DragEvent, id: string) {
-  if (isMerging.value) return
-  const related = event.relatedTarget as Node | null
-  const currentTarget = event.currentTarget as HTMLElement | null
-  if (currentTarget && related && currentTarget.contains(related)) {
-    return
-  }
-  if (dragOverId.value === id) {
-    dragOverId.value = null
-  }
-}
+// Merge drag handlers removed (now handled by MergeList component)
 
 async function startMerge() {
   if (!canMerge.value) return
@@ -1532,6 +1371,7 @@ function resetQueue() {
 
 function resetCompression() {
   if (isCompressing.value) return
+  compressSourceId.value = null
   compressFile.value = null
   compressAdvancedOpen.value = false
   compressAdvancedDirty.value = false
@@ -1556,9 +1396,10 @@ function resetCompression() {
 
 function resetSplitQueue() {
   if (isSplitting.value) return
+  splitLoadToken++
   disposeSplitObserver()
   destroySplitPdfDoc()
-  handleSplitPointerUp()
+  splitSourceId.value = null
   splitFile.value = null
   splitThumbnail.value = null
   splitPageCount.value = null
@@ -1619,37 +1460,7 @@ function ensureSplitObserver(root: HTMLElement | null) {
   }
 }
 
-function resolveHTMLElement(el: HTMLElement | Element | ComponentPublicInstance | null): HTMLElement | null {
-  if (!el) return null
-  if (el instanceof HTMLElement) return el
-  const component = el as ComponentPublicInstance
-  const possible = component?.$el
-  return possible instanceof HTMLElement ? possible : null
-}
-
-function registerSplitCard(el: HTMLElement | Element | ComponentPublicInstance | null, pageIndex: number) {
-  const element = resolveHTMLElement(el)
-  const index = Math.max(1, Math.floor(pageIndex))
-  if (element) {
-    ensureSplitObserver(splitPagesContainer.value)
-    element.dataset.pageIndex = String(index)
-    const previous = splitObservedElements.get(index)
-    if (previous && previous !== element) {
-      splitObserver.value?.unobserve(previous)
-    }
-    splitObservedElements.set(index, element)
-    splitObserver.value?.observe(element)
-    if (index <= 4) {
-      loadSplitPageThumbnail(index)
-    }
-  } else {
-    const existing = splitObservedElements.get(index)
-    if (existing) {
-      splitObserver.value?.unobserve(existing)
-      splitObservedElements.delete(index)
-    }
-  }
-}
+// Lazy-loading observer registration functions removed (handled in components)
 
 function loadSplitPageThumbnail(pageIndex: number) {
   const page = splitPages.value.find(item => item.index === pageIndex)
@@ -1745,36 +1556,43 @@ async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   return await response.blob()
 }
 
-async function handleSplitFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const fileList = input.files
-  if (!fileList || fileList.length === 0) return
-
-  const file = fileList.item(0)
-  if (!file) return
-  if (file.type !== 'application/pdf') {
-    toastStore.error('Unsupported File', 'Please select a PDF document to split')
-    input.value = ''
-    return
-  }
-
+async function loadSplitFile(file: File, sourceId?: string) {
+  const requestId = ++splitLoadToken
   disposeSplitObserver()
   destroySplitPdfDoc()
   splitPages.value = []
   splitThumbnail.value = null
   splitPageCount.value = null
   splitFile.value = file
+  splitSourceId.value = sourceId ?? null
   splitStage.value = 'Analysing document'
   splitProgress.value = 0
 
   try {
     const pdfjs = await loadPdfJs()
+    if (requestId !== splitLoadToken) {
+      return
+    }
+
     const data = await file.arrayBuffer()
+    if (requestId !== splitLoadToken) {
+      return
+    }
+
     const loadingTask = pdfjs.getDocument({ data })
     const pdf = await loadingTask.promise
+    if (requestId !== splitLoadToken) {
+      pdf.destroy?.()
+      return
+    }
+
     splitPdfDoc.value = pdf
     const total = (pdf as { numPages?: number; getPageCount?: () => number }).numPages ?? pdf.getPageCount?.() ?? 0
     splitPageCount.value = total
+
+    if (requestId !== splitLoadToken) {
+      return
+    }
 
     splitPages.value = Array.from({ length: total }, (_, index) => ({
       index: index + 1,
@@ -1784,12 +1602,16 @@ async function handleSplitFileChange(event: Event) {
     }))
 
     queueMicrotask(() => {
+      if (requestId !== splitLoadToken) return
       loadSplitPageThumbnail(1)
       for (let i = 2; i <= Math.min(total, 8); i++) {
         loadSplitPageThumbnail(i)
       }
     })
   } catch (error) {
+    if (requestId !== splitLoadToken) {
+      return
+    }
     console.warn('Failed to analyse PDF for split', error)
     splitPageCount.value = null
     splitThumbnail.value = null
@@ -1797,9 +1619,12 @@ async function handleSplitFileChange(event: Event) {
     splitPages.value = []
   }
 
+  if (requestId !== splitLoadToken) {
+    return
+  }
+
   splitStage.value = ''
   splitProgress.value = 0
-  input.value = ''
 }
 
 async function startCompression(preset?: CompressPresetKey) {
@@ -1896,17 +1721,14 @@ async function startCompression(preset?: CompressPresetKey) {
   }
 }
 
-function triggerOrganizeFileDialog() {
-  if (isOrganizing.value) return
-  organizeInputRef.value?.click()
-}
-
 function resetOrganize() {
   if (isOrganizing.value) return
+  organizeLoadToken++
   disposeOrganizeObserver()
   destroyOrganizePdfDoc()
   organizePages.value = []
   organizeFile.value = null
+  organizeSourceId.value = null
   organizeStage.value = ''
   organizeProgress.value = 0
   organizeLastOutputName.value = null
@@ -1962,29 +1784,7 @@ function ensureOrganizeObserver(root: HTMLElement | null) {
   }
 }
 
-function registerOrganizeCard(el: Element | ComponentPublicInstance | null, pageIndex: number) {
-  const element = resolveHTMLElement(el as any)
-  const index = Math.max(1, Math.floor(pageIndex))
-  if (element) {
-    ensureOrganizeObserver(organizePagesContainer.value)
-    element.dataset.pageIndex = String(index)
-    const previous = organizeObservedElements.get(index)
-    if (previous && previous !== element) {
-      organizeObserver.value?.unobserve(previous)
-    }
-    organizeObservedElements.set(index, element)
-    organizeObserver.value?.observe(element)
-    if (index <= 6) {
-      loadOrganizePageThumbnail(index)
-    }
-  } else {
-    const existing = organizeObservedElements.get(index)
-    if (existing) {
-      organizeObserver.value?.unobserve(existing)
-      organizeObservedElements.delete(index)
-    }
-  }
-}
+// registerOrganizeCard removed (lazy-loading now handled internally)
 
 function loadOrganizePageThumbnail(pageNumber: number) {
   const page = organizePages.value.find(item => item.originalIndex === pageNumber)
@@ -2010,65 +1810,20 @@ function loadOrganizePageThumbnail(pageNumber: number) {
   organizeThumbnailPromises.set(pageNumber, promise)
 }
 
-function handleOrganizeDragStart(event: DragEvent, pageId: number) {
-  if (isOrganizing.value) return
-  organizeDragSourceId.value = pageId
-  event.dataTransfer?.setData('text/plain', String(pageId))
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move'
-  }
-}
-
-function handleOrganizeDragOver(event: DragEvent, pageId: number) {
-  if (isOrganizing.value) return
-  event.preventDefault()
-  organizeDragOverId.value = pageId
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move'
-  }
-}
-
-function handleOrganizeDragEnter(event: DragEvent, pageId: number) {
-  if (isOrganizing.value) return
-  event.preventDefault()
-  if (organizeDragOverId.value !== pageId) {
-    organizeDragOverId.value = pageId
-  }
-}
-
-function handleOrganizeDragLeave(event: DragEvent, pageId: number) {
-  if (isOrganizing.value) return
-  const related = event.relatedTarget as Node | null
-  const currentTarget = event.currentTarget as HTMLElement | null
-  if (currentTarget && related && currentTarget.contains(related)) {
-    return
-  }
-  if (organizeDragOverId.value === pageId) {
-    organizeDragOverId.value = null
-  }
-}
-
-function handleOrganizeDrop(event: DragEvent, pageId: number) {
-  if (isOrganizing.value) return
-  event.preventDefault()
-  const sourceId = organizeDragSourceId.value
-  organizeDragSourceId.value = null
-  organizeDragOverId.value = null
-  if (!sourceId || sourceId === pageId) return
+function handleOrganizeReorder(sourceId: number, targetId: number) {
+  if (!sourceId || sourceId === targetId) return
 
   const pages = [...organizePages.value]
   const fromIndex = pages.findIndex(page => page.id === sourceId)
-  const toIndex = pages.findIndex(page => page.id === pageId)
+  const toIndex = pages.findIndex(page => page.id === targetId)
   if (fromIndex === -1 || toIndex === -1) return
   const [moved] = pages.splice(fromIndex, 1)
+  if (!moved) return
   pages.splice(toIndex, 0, moved)
   organizePages.value = pages
 }
 
-function handleOrganizeDragEnd() {
-  organizeDragSourceId.value = null
-  organizeDragOverId.value = null
-}
+// Organize drag handlers removed (now handled by OrganizeGrid component)
 
 function rotateOrganizePage(pageId: number, direction: 'left' | 'right') {
   const page = organizePages.value.find(item => item.id === pageId)
@@ -2084,37 +1839,31 @@ function toggleOrganizePageRemoved(pageId: number) {
   page.removed = !page.removed
 }
 
-function organizeRotationStyle(page: OrganizePage) {
-  if (!page || page.rotation === 0) return undefined
-  return {
-    transform: `rotate(${page.rotation}deg)`
-  }
-}
+// organizeRotationStyle removed (now handled in OrganizeGrid component)
 
-async function handleOrganizeFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const fileList = input.files
-  if (!fileList || fileList.length === 0) return
-
-  const file = fileList.item(0)
-  if (!file) return
-
-  if (file.type !== 'application/pdf') {
-    toastStore.error('Unsupported File', 'Please select a PDF document to organise')
-    input.value = ''
-    return
-  }
-
+async function loadOrganizeFile(file: File, sourceId?: string) {
   resetOrganize()
+  const requestId = ++organizeLoadToken
   organizeFile.value = file
+  organizeSourceId.value = sourceId ?? null
   organizeStage.value = 'Analysing document'
   organizeProgress.value = 0
 
   try {
     const pdfjs = await loadPdfJs()
+    if (requestId !== organizeLoadToken) {
+      return
+    }
     const data = await file.arrayBuffer()
+    if (requestId !== organizeLoadToken) {
+      return
+    }
     const loadingTask = pdfjs.getDocument({ data })
     const pdf = await loadingTask.promise
+    if (requestId !== organizeLoadToken) {
+      pdf.destroy?.()
+      return
+    }
     organizePdfDoc.value = pdf
     const total = (pdf as { numPages?: number; getPageCount?: () => number }).numPages ?? pdf.getPageCount?.() ?? 0
 
@@ -2128,21 +1877,29 @@ async function handleOrganizeFileChange(event: Event) {
     }))
 
     queueMicrotask(() => {
+      if (requestId !== organizeLoadToken) return
       for (let i = 1; i <= Math.min(total, 8); i++) {
         loadOrganizePageThumbnail(i)
       }
     })
   } catch (error) {
+    if (requestId !== organizeLoadToken) {
+      return
+    }
     console.warn('Failed to analyse PDF for organize', error)
     toastStore.error('Failed to load PDF', 'Could not prepare pages for organisation')
     resetOrganize()
+    return
+  }
+
+  if (requestId !== organizeLoadToken) {
+    return
   }
 
   organizeStage.value = ''
   organizeProgress.value = 0
   organizeDragSourceId.value = null
   organizeDragOverId.value = null
-  input.value = ''
 }
 
 async function startOrganize() {
@@ -2297,35 +2054,22 @@ async function startSplit(mode: 'single' | 'individual' = 'single') {
   }
 }
 
-function handleSplitPointerDown(event: PointerEvent, index: number) {
-  if (isSplitting.value) return
-  event.preventDefault()
+function toggleSplitPage(index: number) {
   const page = splitPages.value.find(item => item.index === index)
   if (!page || page.loading) return
-  const mode: 'select' | 'deselect' = page.selected ? 'deselect' : 'select'
-  splitDragActive.value = true
-  splitDragMode.value = mode
-  splitLastHovered.value = index
-  page.selected = mode === 'select'
-  window.addEventListener('pointerup', handleSplitPointerUp)
+  page.selected = !page.selected
 }
 
-function handleSplitPointerEnter(index: number) {
-  if (!splitDragActive.value || !splitDragMode.value) return
-  if (splitLastHovered.value === index) return
-  const page = splitPages.value.find(item => item.index === index)
-  if (!page || page.loading) return
-  page.selected = splitDragMode.value === 'select'
-  splitLastHovered.value = index
+function selectSplitPageRange(start: number, end: number) {
+  splitPages.value = splitPages.value.map(page => {
+    if (page.index >= start && page.index <= end) {
+      return { ...page, selected: true }
+    }
+    return page
+  })
 }
 
-function handleSplitPointerUp() {
-  if (!splitDragActive.value) return
-  splitDragActive.value = false
-  splitDragMode.value = null
-  splitLastHovered.value = null
-  window.removeEventListener('pointerup', handleSplitPointerUp)
-}
+// Legacy pointer handlers removed (now handled by SplitPageGrid component)
 
 function selectAllSplitPages() {
   if (isSplitting.value) return
@@ -2354,694 +2098,14 @@ watch(organizePagesContainer, (root) => {
   }
 })
 
+// Picker state is now managed internally by PdfSourceSelector components
+
 onBeforeUnmount(() => {
   disposeSplitObserver()
   destroySplitPdfDoc()
-  window.removeEventListener('pointerup', handleSplitPointerUp)
   disposeOrganizeObserver()
   destroyOrganizePdfDoc()
 })
 
 </script>
 
-<style scoped>
-.pdf-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-12);
-  padding: var(--space-16);
-  border: 1px solid var(--color-line-key);
-  border-radius: var(--radius-panel);
-  background: var(--color-bg-inset);
-  min-height: 190px;
-}
-
-.pdf-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-12);
-}
-
-.pdf-card__title {
-  font-family: var(--font-ui-sans);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.pdf-card__status {
-  padding: 0.25rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.pdf-card__status--active {
-  background: rgba(34, 197, 94, 0.15);
-  color: var(--color-acc-success);
-}
-
-.pdf-card__status--idle {
-  background: rgba(148, 163, 184, 0.12);
-  color: var(--color-text-muted);
-}
-
-.pdf-card__description {
-  flex: 1;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-}
-
-.pdf-card__footer {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.merge-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-12);
-  border: 1px solid var(--color-line-key);
-  border-radius: var(--radius-panel-inner);
-  padding: var(--space-12);
-  background: var(--color-bg-inset-2);
-  max-height: 280px;
-  overflow-y: auto;
-}
-
-.merge-list__hint {
-  margin: 0;
-  padding: 0 var(--space-4);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--color-text-muted);
-}
-
-.merge-item {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-12);
-  padding: 0.35rem 0.25rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-panel-inner);
-  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
-}
-
-.merge-item--dragging {
-  opacity: 0.6;
-  border-color: var(--color-line-key);
-}
-
-.merge-item--over {
-  border-color: var(--color-acc-error);
-  background: rgba(255, 93, 99, 0.08);
-  box-shadow: 0 0 0 1px rgba(255, 93, 99, 0.16);
-}
-
-.merge-item__order {
-  width: 1.75rem;
-  flex: 0 0 auto;
-  text-align: center;
-  font-family: var(--font-ui-mono, var(--font-ui-sans));
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-.merge-item--dragging .merge-item__order,
-.merge-item--over .merge-item__order {
-  color: var(--color-acc-error);
-}
-
-.merge-item__meta {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.merge-item__thumb {
-  width: 60px;
-  height: 80px;
-  border-radius: var(--radius-panel-inner);
-  overflow: hidden;
-  background: var(--color-bg-panel);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.merge-item__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.merge-item__thumb--placeholder {
-  width: 100%;
-  height: 100%;
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--color-text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.merge-item__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-}
-
-.merge-progress {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
-.merge-progress__bar {
-  width: 100%;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--color-line-hair);
-  overflow: hidden;
-}
-
-.merge-progress__fill {
-  height: 100%;
-  background: var(--color-acc-error);
-  transition: width 160ms ease-out;
-}
-
-.merge-progress__label {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-}
-
-.merge-empty {
-  padding: var(--space-16);
-  border: 1px dashed var(--color-line-key);
-  border-radius: var(--radius-panel-inner);
-  text-align: center;
-}
-
-.split-preview {
-  display: flex;
-  gap: var(--space-16);
-  align-items: flex-start;
-}
-
-.split-preview__thumb {
-  width: 120px;
-  height: 160px;
-  border-radius: var(--radius-panel-inner);
-  overflow: hidden;
-  background: var(--color-bg-panel);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.split-preview__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.split-preview__thumb--placeholder {
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-}
-
-.split-preview__form {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
-.split-pages-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-8);
-}
-
-.split-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-12);
-}
-
-.compress-advanced {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-  padding: var(--space-12);
-  border: 1px solid var(--color-line-key);
-  border-radius: var(--radius-panel-inner);
-  background: var(--color-bg-inset-2);
-}
-
-.compress-advanced__row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.compress-advanced__label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.compress-advanced__toggles {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-  padding-top: var(--space-4);
-}
-
-.compress-advanced__checkbox {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--color-text-secondary);
-}
-
-.compress-advanced__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-6);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--color-line-hair);
-}
-
-.compress-advanced__toggle-btn {
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  padding-inline: var(--space-6);
-  height: 1.8rem;
-}
-
-.compress-report {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-  padding: var(--space-12);
-  border: 1px solid var(--color-line-key);
-  border-radius: var(--radius-panel-inner);
-  background: var(--color-bg-panel);
-}
-
-.compress-report__header {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--space-6);
-}
-
-.compress-report__label {
-  display: block;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-}
-
-.compress-report__value {
-  font-family: var(--font-ui-mono, var(--font-ui-sans));
-  font-size: 0.95rem;
-  color: var(--color-text-primary);
-}
-
-.compress-report__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--space-4);
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-}
-
-.compress-report__badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  background: rgba(34, 197, 94, 0.12);
-  color: var(--color-acc-success);
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-}
-
-.compress-report__badge--warning {
-  background: rgba(255, 93, 99, 0.15);
-  color: var(--color-acc-error);
-}
-
-.compress-report__options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-.compress-report__option {
-  font-family: var(--font-ui-mono, var(--font-ui-sans));
-  background: var(--color-bg-inset-2);
-  padding: 0.3rem 0.6rem;
-  border-radius: 999px;
-}
-
-.compress-report__details {
-  display: grid;
-  gap: var(--space-12);
-  padding-top: var(--space-10);
-  border-top: 1px solid var(--color-line-hair);
-}
-
-.compress-report__group {
-  display: grid;
-  gap: var(--space-6);
-}
-
-.compress-report__group-title {
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.72rem;
-  color: var(--color-text-secondary);
-}
-
-.compress-report__group-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-6);
-}
-
-.compress-report__group-saved {
-  font-family: var(--font-ui-mono, var(--font-ui-sans));
-  font-size: 0.72rem;
-  color: var(--color-text-muted);
-}
-
-.compress-report__group ul {
-  display: grid;
-  gap: var(--space-4);
-  font-size: 0.78rem;
-  color: var(--color-text-secondary);
-}
-
-.compress-report__detail-name {
-  font-weight: 600;
-  color: var(--color-text-primary);
-  display: block;
-}
-
-.compress-report__detail-meta {
-  font-family: var(--font-ui-mono, var(--font-ui-sans));
-  font-size: 0.72rem;
-  color: var(--color-text-muted);
-}
-
-.compress-report__detail-saved {
-  font-family: var(--font-ui-mono, var(--font-ui-sans));
-  font-size: 0.72rem;
-  color: var(--color-acc-success);
-}
-
-.compress-presets {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-12);
-}
-
-
-.compress-preset {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-4);
-  width: 100%;
-  padding: var(--space-12);
-  border-radius: var(--radius-panel-inner);
-  border: 1px solid var(--color-line-key);
-  background: var(--color-bg-panel);
-  text-align: left;
-  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease, transform 120ms ease;
-  cursor: pointer;
-  appearance: none;
-}
-
-.compress-preset:hover {
-  border-color: var(--color-acc-error);
-}
-
-.compress-preset--active {
-  border-color: var(--color-acc-error);
-  box-shadow: 0 0 0 1px rgba(255, 93, 99, 0.2);
-}
-
-.compress-preset:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.compress-preset__label {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--color-text-primary);
-}
-
-.compress-preset__meta {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.organize-grid {
-  display: grid;
-  gap: var(--space-6);
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-}
-
-@media (min-width: 1280px) {
-  .organize-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-}
-
-.organize-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-6);
-  border: 1px solid var(--color-line-key);
-  border-radius: var(--radius-panel-inner);
-  background: var(--color-bg-panel);
-  transition: border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
-}
-
-.organize-card--dragging {
-  opacity: 0.6;
-  border-color: var(--color-line-key);
-}
-
-.organize-card--over {
-  border-color: var(--color-acc-error);
-  box-shadow: 0 0 0 1px rgba(255, 93, 99, 0.2);
-}
-
-.organize-card--removed {
-  opacity: 0.55;
-}
-
-.organize-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: var(--color-text-secondary);
-}
-
-.organize-card__index {
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.organize-card__thumb {
-  position: relative;
-  border-radius: var(--radius-panel-inner);
-  overflow: hidden;
-  background: var(--color-bg-inset-2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 140px;
-}
-
-.organize-card__thumb img {
-  max-width: 100%;
-  height: auto;
-  display: block;
-}
-
-.organize-card__thumb-inner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 160ms ease;
-}
-
-.organize-card__thumb-placeholder {
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  padding: var(--space-4);
-  text-align: center;
-}
-
-.organize-card__removed-banner {
-  position: absolute;
-  inset: auto 0 0 0;
-  padding: 0.35rem;
-  background: rgba(239, 68, 68, 0.9);
-  color: white;
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  text-align: center;
-}
-
-.organize-card__actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.organize-card__rotation {
-  font-size: 0.72rem;
-  color: var(--color-text-secondary);
-  text-align: center;
-}
-
-.organize-empty {
-  padding: var(--space-12);
-  border: 1px dashed var(--color-line-key);
-  border-radius: var(--radius-panel-inner);
-  text-align: center;
-}
-
-.organize-progress {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
-.organize-progress__bar {
-  width: 100%;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--color-line-hair);
-  overflow: hidden;
-}
-
-.organize-progress__fill {
-  height: 100%;
-  background: var(--color-acc-error);
-  transition: width 160ms ease-out;
-}
-
-.organize-progress__label {
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--color-text-secondary);
-}
-.split-pages-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
-  gap: var(--space-12);
-  max-height: 320px;
-  overflow-y: auto;
-  padding: var(--space-12);
-  border: 1px solid var(--color-line-key);
-  border-radius: var(--radius-panel-inner);
-  background: var(--color-bg-inset-2);
-}
-
-.split-page-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-8);
-  padding: var(--space-8);
-  border-radius: var(--radius-panel-inner);
-  border: 1px solid transparent;
-  background: var(--color-bg-panel);
-  transition: border-color 120ms ease, transform 120ms ease;
-}
-
-.split-page-card--selected {
-  border-color: var(--color-acc-error);
-  box-shadow: 0 0 0 1px rgba(255, 93, 99, 0.3);
-}
-
-.split-page-card--loading .split-page-card__thumb {
-  opacity: 0.6;
-}
-
-.split-page-card--disabled {
-  opacity: 0.6;
-}
-
-.split-page-card__thumb {
-  width: 70px;
-  height: 96px;
-  border-radius: var(--radius-panel-inner);
-  overflow: hidden;
-  background: var(--color-bg-inset);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.split-page-card__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.split-page-card__thumb--placeholder {
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-}
-
-.split-page-card__label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--color-text-secondary);
-}
-</style>

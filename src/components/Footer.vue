@@ -14,7 +14,7 @@
             Open Source Licenses
           </RouterLink>
           <a
-            href="https://akius.tools"
+            href="https://akius.dev"
             target="_blank"
             rel="noopener noreferrer"
             class="hover:text-graphite-200 transition-colors flex items-center gap-1"
