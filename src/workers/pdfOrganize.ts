@@ -28,6 +28,9 @@ export async function buildOrganizedDocument(
   for (const pageNumber of uniqueOrder) {
     const index = pageNumber - 1
     const [copied] = await output.copyPages(source, [index])
+    if (!copied) {
+      throw new Error(`Failed to copy page ${pageNumber}`)
+    }
     const rotation = rotations[pageNumber]
     if (typeof rotation === 'number') {
       const normalized = ((rotation % 360) + 360) % 360

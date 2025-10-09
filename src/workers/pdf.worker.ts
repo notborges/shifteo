@@ -290,9 +290,9 @@ async function handleCompress(id: number, payload: RunMessage, task: ExtractDocT
     const preset: VectorPreset = task.preset ?? 'light'
     const compressionOptions: PdfCompressionOptions = task.options ?? {}
     const presetDefaults = {
-      light: { imageQuality: 0.94, maxImageDimension: 2600, coordinatePrecision: 3 },
-      balanced: { imageQuality: 0.9, maxImageDimension: 2100, coordinatePrecision: 3 },
-      small: { imageQuality: 0.75, maxImageDimension: 1400, coordinatePrecision: 2 }
+      light: { imageQuality: 0.94, maxImageDimension: 2600, coordinatePrecision: 4 },
+      balanced: { imageQuality: 0.9, maxImageDimension: 2100, coordinatePrecision: 4 },
+      small: { imageQuality: 0.75, maxImageDimension: 1400, coordinatePrecision: 4 }
     } as const
     const defaults = presetDefaults[preset]
     const imageQuality = Math.min(1, Math.max(0.5, compressionOptions.imageQuality ?? defaults.imageQuality))
@@ -335,14 +335,10 @@ async function handleCompress(id: number, payload: RunMessage, task: ExtractDocT
     postProgress(id, 0.4)
 
     const fontResult = pruneUnusedFonts(document, pruneFontsEnabled)
-    const streamLevel = preset === 'small' ? 9 : preset === 'balanced' ? 7 : 5
-    const streamResult = recompressStreamsEnabled
-      ? compressContentStreams(document, {
-          level: streamLevel,
-          coordinatePrecision,
-          collapseWhitespace: preset === 'small'
-        })
-      : { modified: false, streams: 0, totalBytesSaved: 0, changes: [] }
+    const streamLevel = preset === 'small' ? 9 : preset === 'balanced' ? 9 : 9
+    const streamResult = compressContentStreams(document, {
+      level: streamLevel
+    })
 
     postStage(id, 'Compressing embedded images')
     const imageResult = await compressPdfPreservingVectors(document, preset, {

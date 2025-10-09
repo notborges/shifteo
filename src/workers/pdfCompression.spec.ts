@@ -25,9 +25,7 @@ describe('pdfCompression helpers', () => {
     page.node.set(PDFName.of('Contents'), streamRef)
 
     const result = compressContentStreams(document, {
-      level: 9,
-      coordinatePrecision: 1,
-      collapseWhitespace: true
+      level: 9
     })
 
     expect(result.modified).toBe(true)

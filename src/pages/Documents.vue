@@ -538,9 +538,9 @@ const compressPresets = [
 type CompressPresetKey = typeof compressPresets[number]['key']
 
 const compressPresetDefaults: Record<CompressPresetKey, { imageQuality: number; maxImageDimension: number; coordinatePrecision: number }> = {
-  light: { imageQuality: 0.94, maxImageDimension: 2600, coordinatePrecision: 3 },
-  balanced: { imageQuality: 0.9, maxImageDimension: 2100, coordinatePrecision: 3 },
-  small: { imageQuality: 0.75, maxImageDimension: 1400, coordinatePrecision: 2 }
+  light: { imageQuality: 0.94, maxImageDimension: 2600, coordinatePrecision: 4 },
+  balanced: { imageQuality: 0.9, maxImageDimension: 2100, coordinatePrecision: 4 },
+  small: { imageQuality: 0.75, maxImageDimension: 1400, coordinatePrecision: 4 }
 }
 
 const toastStore = useToastStore()
@@ -567,7 +567,7 @@ const compressOptions = reactive({
   imageQuality: compressPresetDefaults.light.imageQuality,
   maxImageDimension: compressPresetDefaults.light.maxImageDimension,
   coordinatePrecision: compressPresetDefaults.light.coordinatePrecision,
-  pruneFonts: true,
+  pruneFonts: false,
   recompressStreams: true
 })
 const compressReport = ref<PdfCompressionStats | null>(null)
@@ -615,7 +615,7 @@ interface StoredCompressAdvancedOptions {
   recompressStreams: boolean
 }
 
-const COMPRESS_ADVANCED_STORAGE_KEY = 'shifteo:compress-advanced-v1'
+const COMPRESS_ADVANCED_STORAGE_KEY = 'shifteo:compress-advanced-v2'
 let storedAdvancedOptions: Partial<Record<CompressPresetKey, StoredCompressAdvancedOptions>> = {}
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -909,7 +909,7 @@ function applyPresetDefaults(preset: CompressPresetKey, includeStored = true): b
   compressOptions.imageQuality = defaults.imageQuality
   compressOptions.maxImageDimension = defaults.maxImageDimension
   compressOptions.coordinatePrecision = defaults.coordinatePrecision
-  compressOptions.pruneFonts = true
+  compressOptions.pruneFonts = false
   compressOptions.recompressStreams = true
 
   if (!includeStored) {

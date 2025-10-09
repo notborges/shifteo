@@ -25,9 +25,7 @@ const VECTOR_COMPRESSION_CONFIG: Record<VectorPreset, ImageCompressionConfig> = 
 }
 
 const fontRegex = /\/([A-Za-z0-9_.+\-]+)\s+Tf/g
-const floatRegex = /(-?\d*\.\d{3,})/g
 const textDecoder = new TextDecoder('latin1')
-const textEncoder = new TextEncoder()
 
 function cloneDict(dict: PDFDict): PDFDict {
   const newDict = PDFDict.withContext(dict.context)
@@ -218,8 +216,6 @@ export function hasOffscreenCanvasSupport(): boolean {
 
 interface StreamCompressionConfig {
   level: number
-  coordinatePrecision: number
-  collapseWhitespace: boolean
 }
 
 export function compressContentStreams(
@@ -228,8 +224,6 @@ export function compressContentStreams(
 ): { modified: boolean; streams: number; totalBytesSaved: number; changes: PdfStreamChange[] } {
   const context = document.context
   const level = Math.min(9, Math.max(1, config.level))
-  const precision = Math.min(4, Math.max(0, config.coordinatePrecision))
-  const collapseWhitespace = config.collapseWhitespace
 
   let rewritten = 0
   let totalBytesSaved = 0
@@ -254,40 +248,10 @@ export function compressContentStreams(
       continue
     }
 
-    let working = decoded
-    const shouldRound = precision < 4
-
-    if (shouldRound || collapseWhitespace) {
-      try {
-        const raw = textDecoder.decode(decoded)
-        let transformed = raw
-
-        if (shouldRound) {
-          const factor = 10 ** precision
-          transformed = transformed.replace(floatRegex, (match) => {
-            const num = Number.parseFloat(match)
-            if (!Number.isFinite(num)) return match
-            const rounded = Math.round(num * factor) / factor
-            if (rounded === 0) return '0'
-            return precision > 0 ? Number(rounded.toFixed(precision)).toString() : rounded.toString()
-          })
-        }
-
-        if (collapseWhitespace) {
-          transformed = transformed.replace(/\s{2,}/g, ' ')
-        }
-
-        if (transformed !== raw) {
-          working = textEncoder.encode(transformed)
-        }
-      } catch (error) {
-        working = decoded
-      }
-    }
-
+    // SAFE: Just recompress at higher level, NO content modification
     let recompressed: Uint8Array
     try {
-      recompressed = deflate(working, { level })
+      recompressed = deflate(decoded, { level: level as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 })
     } catch (error) {
       continue
     }

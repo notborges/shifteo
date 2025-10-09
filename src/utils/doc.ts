@@ -47,6 +47,22 @@ const DOC_TASKS: Record<DocTask['kind'], DocTaskDescriptor> = {
         : 'all pages'
       return `Split PDF (${pages})`
     }
+  },
+  pdf_compress: {
+    label: 'Compress PDF',
+    defaultExtension: 'pdf',
+    summarize: (task) => {
+      const preset = task.kind === 'pdf_compress' ? task.preset ?? 'balanced' : 'balanced'
+      return `Compress PDF (${preset})`
+    }
+  },
+  pdf_organize: {
+    label: 'Organize PDF',
+    defaultExtension: 'pdf',
+    summarize: (task) => {
+      const pageCount = task.kind === 'pdf_organize' && task.order ? task.order.length : 0
+      return pageCount > 0 ? `Organize PDF (${pageCount} pages)` : 'Organize PDF'
+    }
   }
 }
 
