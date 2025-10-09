@@ -79,43 +79,50 @@
         </div>
       </UiPanel>
 
+      <!-- Workflow Tabs -->
+      <div class="col-span-12">
+        <TabSelector
+          v-model="activeWorkflow"
+          :tabs="workflowTabs"
+        />
+      </div>
+
+      <!-- Merge Workflow -->
       <WorkflowSection
+        v-show="activeWorkflow === 'merge'"
         title="Merge PDFs"
         subtitle="Combine multiple PDFs in any order"
-        :icon="Upload"
-        colspan="12 lg:col-span-6"
+        :icon="Layers"
+        colspan="12"
         :supports-drop="true"
         @drop="handleMergeDropZoneDrop"
       >
         <!-- Description & Meta -->
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="body-text text-text-muted text-sm">
-            Send PDFs from the queue to build your merge order.
-          </span>
-          <span v-if="hasFiles" class="mono text-text-secondary text-sm">
-            {{ mergeFiles.length }} file{{ mergeFiles.length === 1 ? '' : 's' }} · {{ formatFileSize(totalSize) }}
-          </span>
-          <span v-if="lastResultName" class="body-text text-text-secondary text-sm">Last output: {{ lastResultName }}</span>
+        <div class="flex flex-col gap-3">
+          <p class="body-text text-text-muted text-sm">
+            Drag PDFs from the queue above to build your merge order. Files merge from top to bottom.
+          </p>
+          <div v-if="hasFiles" class="flex flex-wrap items-center gap-3">
+            <span class="mono text-text-secondary text-sm">
+              {{ mergeFiles.length }} file{{ mergeFiles.length === 1 ? '' : 's' }} · {{ formatFileSize(totalSize) }}
+            </span>
+            <span v-if="lastResultName" class="body-text text-text-muted text-xs">
+              Last output: {{ lastResultName }}
+            </span>
+          </div>
         </div>
 
-        <!-- Queue PDF Selector (Checkboxes) -->
-        <div v-if="pdfQueue.length" class="pdf-checkbox-selector">
-          <p class="body-text text-text-secondary uppercase tracking-wider text-xs">Queue PDFs</p>
-          <div class="pdf-checkbox-list">
-            <UiCheckbox
-              v-for="item in pdfQueue"
-              :key="`merge-source-${item.id}`"
-              class="pdf-checkbox-item"
-              :model-value="mergeSourceIds.has(item.id)"
-              :disabled="isMerging"
-              @change="value => handleMergeCheckbox(item.id, value)"
-            >
-              <div class="pdf-checkbox-content">
-                <span class="mono truncate">{{ item.file.name }}</span>
-                <span class="text-text-muted text-xs">{{ formatFileSize(item.file.size) }}</span>
-              </div>
-            </UiCheckbox>
-          </div>
+        <!-- Quick Add Button -->
+        <div v-if="pdfQueue.length > 0 && mergeFiles.length === 0" class="flex justify-start">
+          <UiButton
+            type="button"
+            size="sm"
+            variant="solid"
+            :disabled="isMerging"
+            @click="addAllToMerge"
+          >
+            Add All from Queue ({{ pdfQueue.length }})
+          </UiButton>
         </div>
 
         <!-- Merge List with Drag & Drop -->
@@ -161,11 +168,13 @@
         </UiButton>
       </WorkflowSection>
 
+      <!-- Split Workflow -->
       <WorkflowSection
+        v-show="activeWorkflow === 'split'"
         title="Split / Extract"
         subtitle="Extract selected pages into a new PDF"
         :icon="Scissors"
-        colspan="12 lg:col-span-6"
+        colspan="12"
         :supports-drop="true"
         @drop="handleSplitDropZoneDrop"
       >
@@ -241,11 +250,13 @@
         </div>
       </WorkflowSection>
 
+      <!-- Organize Workflow -->
       <WorkflowSection
+        v-show="activeWorkflow === 'organize'"
         title="Organize Pages"
         subtitle="Reorder, rotate, or remove pages before exporting"
         :icon="Grid3x3"
-        colspan="12 lg:col-span-6"
+        colspan="12"
         :supports-drop="true"
         @drop="handleOrganizeDropZoneDrop"
       >
@@ -304,11 +315,13 @@
         </UiButton>
       </WorkflowSection>
 
+      <!-- Compress Workflow -->
       <WorkflowSection
+        v-show="activeWorkflow === 'compress'"
         title="Compress PDF"
         subtitle="Shrink PDFs with tuned presets"
         :icon="Gauge"
-        colspan="12 lg:col-span-6"
+        colspan="12"
         :supports-drop="true"
         @drop="handleCompressDropZoneDrop"
       >
@@ -412,9 +425,9 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiPanel from '@/components/ui/UiPanel.vue'
-import UiCheckbox from '@/components/ui/UiCheckbox.vue'
 import DropZone from '@/components/DropZone.vue'
 import WorkflowSection from '@/components/WorkflowSection.vue'
+import TabSelector from '@/components/TabSelector.vue'
 import PdfSourceSelector from '@/components/PdfSourceSelector.vue'
 import PdfPresetSelector from '@/components/PdfPresetSelector.vue'
 import PdfQueueList from '@/components/PdfQueueList.vue'
@@ -428,7 +441,7 @@ import { useToastStore } from '@/app/stores/toast'
 import { pdfWorkerPool } from '@/workers/pdfWorkerPool'
 import { downloadAsZip, downloadFile, generateFileId } from '@/utils/file'
 import { formatFileSize } from '@/utils/format'
-import { FileText, Upload, Scissors, Gauge, Grid3x3, ListX } from 'lucide-vue-next'
+import { FileText, Upload, Scissors, Gauge, Grid3x3, ListX, Layers } from 'lucide-vue-next'
 import ImagePreviewModal from '@/components/ImagePreviewModal.vue'
 import type { Job, PdfCompressionStats } from '@/workers/types'
 
@@ -538,6 +551,14 @@ const organizeDragOverId = ref<number | null>(null)
 let organizeLoadToken = 0
 
 const isPageDragging = ref(false)
+const activeWorkflow = ref<'merge' | 'split' | 'organize' | 'compress'>('compress')
+
+const workflowTabs = [
+  { id: 'merge', label: 'Merge', icon: Layers },
+  { id: 'split', label: 'Split', icon: Scissors },
+  { id: 'organize', label: 'Organize', icon: Grid3x3 },
+  { id: 'compress', label: 'Compress', icon: Gauge }
+] as const
 
 interface StoredCompressAdvancedOptions {
   imageQuality: number
@@ -1050,19 +1071,10 @@ function assignQueueItemToMerge(id: string) {
   enqueueMergeFiles([{ file: item.file, sourceId: id }])
 }
 
-function removeQueueItemFromMerge(id: string) {
+function addAllToMerge() {
   if (isMerging.value) return
-  if (!mergeSourceIds.value.has(id)) return
-  mergeFiles.value = mergeFiles.value.filter(item => item.sourceId !== id)
-  toastStore.info('Removed from Merge', 'Item removed from merge order')
-}
-
-function handleMergeCheckbox(id: string, checked: boolean) {
-  if (checked) {
-    assignQueueItemToMerge(id)
-  } else {
-    removeQueueItemFromMerge(id)
-  }
+  const items = pdfQueue.value.map(item => ({ file: item.file, sourceId: item.id }))
+  enqueueMergeFiles(items)
 }
 
 function handleSplitSelection(id: string) {
