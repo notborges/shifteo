@@ -18,32 +18,24 @@
     <div class="page-grid">
       <UiPanel :inset="true" class="col-span-12">
         <template #header>
-          <span>Add Images</span>
-          <div class="panel__meta formats-meta">
-            <span v-for="label in dropzoneFormats" :key="label">{{ label }}</span>
-          </div>
-        </template>
-        <DropZone
-          :accept="acceptString"
-          :formats="dropzoneFormats"
-          @files-selected="handleFilesSelected"
-          @drop-complete="clearPageDragState"
-        />
-      </UiPanel>
-
-      <div class="panel col-span-12">
-        <div class="panel__header">
           <span>Queue</span>
           <div class="panel__meta">
             {{ queueStore.totalJobs }} Files · {{ queueStore.pendingJobs.length }} Pending
           </div>
-        </div>
+        </template>
+
         <div class="panel__body">
-          <div v-if="queueStore.totalJobs === 0" class="empty-state">
-            <ListX :size="48" :stroke-width="1" class="text-text-muted" />
-            <div class="empty-state__title">Queue Empty</div>
-            <div class="empty-state__meta">Add files to start processing.</div>
+          <!-- Empty State with Upload -->
+          <div v-if="queueStore.totalJobs === 0">
+            <DropZone
+              :accept="acceptString"
+              :formats="dropzoneFormats"
+              @files-selected="handleFilesSelected"
+              @drop-complete="clearPageDragState"
+            />
           </div>
+
+          <!-- Queue List -->
           <div v-else>
             <FileListItem
               v-for="job in queueStore.jobs"
@@ -56,10 +48,19 @@
             />
           </div>
         </div>
+
         <div class="panel__footer" v-if="queueStore.totalJobs > 0">
           <div class="flex w-full items-center justify-between flex-wrap gap-2">
-            <div class="flex flex-col gap-1">
-              <span>{{ queueStore.totalJobs }} file{{ queueStore.totalJobs > 1 ? 's' : '' }}</span>
+            <div class="flex items-center gap-3">
+              <UiButton
+                variant="solid"
+                size="sm"
+                type="button"
+                @click="triggerFileInput"
+              >
+                <Upload :size="14" />
+                Add More Images
+              </UiButton>
               <span v-if="queueStore.completedJobs.length > 0" class="text-text-muted text-xs mono">
                 {{ formatStats() }}
               </span>
@@ -76,7 +77,16 @@
             </div>
           </div>
         </div>
-      </div>
+
+        <input
+          ref="fileInput"
+          type="file"
+          multiple
+          :accept="acceptString"
+          class="hidden"
+          @change="handleFileInputChange"
+        />
+      </UiPanel>
 
       <div class="panel col-span-12 xl:col-span-6">
         <div class="panel__header">
@@ -332,7 +342,7 @@ import { imageWorkerPool as imageWorker } from '@/workers/workerPool'
 import { isFormatSupported, generateOutputFilename, formatFileSize, inferOriginalImageFormat, inferProcessingFormat } from '@/utils/format'
 import { getImageDimensions, generateThumbnail, downloadFile, downloadAsZip, wrapImageBlobAsSvg } from '@/utils/file'
 import { storeQueueJob, removeQueueJob } from '@/utils/idb'
-import { Upload, ListX } from 'lucide-vue-next'
+import { Upload } from 'lucide-vue-next'
 import type { ImageConvertOpts, ImageFormat, Job, ExtendedImageFormat } from '@/workers/types'
 
 const queueStore = useQueueStore()
@@ -426,6 +436,9 @@ const autoDownload = ref(false)
 const previewJob = ref<Job | null>(null)
 const isPreviewOpen = ref(false)
 
+// File input for "Add More Images" button
+const fileInput = ref<HTMLInputElement | null>(null)
+
 function openPreview(job: Job) {
   if (job.status !== 'completed' || !job.result) return
   previewJob.value = job
@@ -483,6 +496,20 @@ function handlePageDrop(event: DragEvent) {
 function clearPageDragState() {
   isPageDragging.value = false
   dragCounter.value = 0
+}
+
+function triggerFileInput() {
+  fileInput.value?.click()
+}
+
+function handleFileInputChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+  if (files.length > 0) {
+    handleFilesSelected(files)
+  }
+  // Reset input so same file can be selected again
+  if (target) target.value = ''
 }
 
 // Settings preview
