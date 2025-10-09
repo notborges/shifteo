@@ -74,11 +74,10 @@
   {
     "name": "documents",
     "path": "/documents",
-    "title": "Document shifting roadmap | Shifteo",
-    "description": "DOCX to HTML, PDF merge and split, and page extraction features are in development.",
-    "priority": 0.4,
-    "changefreq": "monthly",
-    "noindex": true
+    "title": "PDF Tools — Compress, Merge, Split, Organize | Shifteo",
+    "description": "Compress, merge, split, and organize PDFs locally in your browser. Smart compression presets, page reordering, and batch operations with zero uploads.",
+    "priority": 0.9,
+    "changefreq": "weekly"
   },
   {
     "name": "settings",

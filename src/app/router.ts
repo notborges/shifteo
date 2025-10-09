@@ -18,7 +18,7 @@ const routes: RouteRecordRaw[] = [
     path: '/documents',
     name: 'documents',
     component: () => import('@/pages/Documents.vue'),
-    meta: { title: 'Documents', subtitle: 'Coming Soon', seoKey: 'documents' }
+    meta: { title: 'Documents', subtitle: 'PDF Tools', seoKey: 'documents' }
   },
   {
     path: '/settings',

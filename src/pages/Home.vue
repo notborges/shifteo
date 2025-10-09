@@ -27,8 +27,8 @@
         </template>
       </UiPanel>
 
-      <RouterLink to="/images" class="col-span-12 lg:col-span-6">
-        <UiPanel :hoverable="true">
+      <RouterLink to="/images" class="col-span-12 lg:col-span-6 flex">
+        <UiPanel :hoverable="true" class="flex-1">
           <template #header>
             <span>Images</span>
             <span class="panel__meta">PNG · JPEG · WEBP · AVIF · TIFF · BMP · ICO</span>
@@ -47,19 +47,26 @@
         </UiPanel>
       </RouterLink>
 
-      <UiPanel class="col-span-12 lg:col-span-6">
-        <template #header>
-          <span>Documents</span>
-          <span class="panel__meta">Coming soon</span>
-        </template>
-        <p class="body-text text-text-secondary">
-          DOCX to HTML, PDF merge/split, and page extraction features are in development.
-        </p>
-        <div class="badge">Coming Soon</div>
-        <template #footer>
-          In development
-        </template>
-      </UiPanel>
+      <RouterLink to="/documents" class="col-span-12 lg:col-span-6 flex">
+        <UiPanel :hoverable="true" class="flex-1">
+          <template #header>
+            <span>Documents</span>
+            <span class="panel__meta">PDF</span>
+          </template>
+          <p class="body-text text-text-secondary">
+            Compress, merge, split, and organize PDFs locally in your browser. Tab-based workflows with smart presets and instant results.
+          </p>
+          <ul class="body-text text-text-muted uppercase tracking-wide">
+            <li>Compress with light/balanced/small presets</li>
+            <li>Merge multiple PDFs in custom order</li>
+            <li>Split & extract specific pages</li>
+            <li>Reorder, rotate, and remove pages</li>
+          </ul>
+          <template #footer>
+            Get Started &rsaquo;
+          </template>
+        </UiPanel>
+      </RouterLink>
 
       <UiPanel class="col-span-12">
         <template #header>

@@ -85,7 +85,7 @@
             <FileText :size="16" />
             <span>Document Defaults</span>
           </div>
-          <span class="panel__meta">Used for upcoming PDF tools</span>
+          <span class="panel__meta">Applies to PDF operations</span>
         </template>
         <div class="space-y-6">
           <div>
