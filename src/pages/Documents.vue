@@ -18,23 +18,6 @@
     <div class="page-grid gap-6">
       <UiPanel class="col-span-12" :inset="true">
         <template #header>
-          <div class="flex items-center gap-2">
-            <FileText :size="16" />
-            <span>PDF Toolkit</span>
-          </div>
-          <span class="panel__meta">Add PDFs to the queue, then route them to the right workflow</span>
-        </template>
-        <DropZone
-          :multiple="true"
-          accept="application/pdf"
-          :formats="['PDF']"
-          @files-selected="handleQueueFilesSelected"
-          @drop-complete="clearPageDragState"
-        />
-      </UiPanel>
-
-      <UiPanel class="col-span-12">
-        <template #header>
           <span>Queue</span>
           <div class="panel__meta">
             {{ pdfQueue.length }} PDF{{ pdfQueue.length === 1 ? '' : 's' }}
@@ -42,18 +25,28 @@
         </template>
 
         <div class="panel__body">
-          <div v-if="pdfQueue.length === 0" class="empty-state">
-            <ListX :size="48" :stroke-width="1" class="text-text-muted" />
-            <div class="empty-state__title">Queue Empty</div>
-            <div class="empty-state__meta">Drop PDFs above to start.</div>
+          <!-- Empty State with Upload -->
+          <div v-if="pdfQueue.length === 0">
+            <DropZone
+              :multiple="true"
+              accept="application/pdf"
+              :formats="['PDF']"
+              @files-selected="handleQueueFilesSelected"
+              @drop-complete="clearPageDragState"
+            />
           </div>
+
+          <!-- Queue List -->
           <PdfQueueList
             v-else
             :items="pdfQueue"
             :locked="isQueueLocked"
             :draggable="true"
+            :clickable="true"
+            :active-item-id="activeQueueItem"
             :badges="queueAssignments"
-            hint="Drag items onto a workflow panel or use the 'Choose from queue' controls below."
+            hint="Click or drag an item to assign it to the selected workflow."
+            @click="handleQueueItemClick"
             @preview="previewQueueItem"
             @download="downloadQueueItem"
             @remove="removeQueueItem"
@@ -64,7 +57,16 @@
 
         <div class="panel__footer" v-if="pdfQueue.length > 0">
           <div class="flex w-full items-center justify-between flex-wrap gap-2">
-            <span>{{ pdfQueue.length }} PDF{{ pdfQueue.length > 1 ? 's' : '' }}</span>
+            <UiButton
+              type="button"
+              size="sm"
+              variant="solid"
+              :disabled="isQueueLocked"
+              @click="triggerFileInput"
+            >
+              <Upload :size="14" />
+              Add More PDFs
+            </UiButton>
             <UiButton
               type="button"
               size="sm"
@@ -77,6 +79,14 @@
             </UiButton>
           </div>
         </div>
+        <input
+          ref="fileInput"
+          type="file"
+          multiple
+          accept="application/pdf"
+          class="hidden"
+          @change="handleFileInputChange"
+        />
       </UiPanel>
 
       <!-- Workflow Tabs -->
@@ -178,23 +188,34 @@
         :supports-drop="true"
         @drop="handleSplitDropZoneDrop"
       >
-        <!-- Source PDF Selector -->
-        <PdfSourceSelector
-          :queue-items="pdfQueue"
-          :selected-id="splitSourceId"
-          :disabled="isSplitting"
-          @select="handleSplitSelection"
-          @clear="resetSplitQueue"
-        />
+        <!-- Empty State -->
+        <div v-if="!splitFile" class="empty-state">
+          <Scissors :size="48" :stroke-width="1" class="text-text-muted" />
+          <div class="empty-state__title">No PDF Selected</div>
+          <div class="empty-state__meta">Click a PDF from the queue above to get started</div>
+        </div>
 
+        <!-- File Selected -->
+        <template v-else>
         <!-- File Meta Info -->
-        <div v-if="splitFile" class="flex flex-col gap-2">
-          <span class="mono text-text-primary">
-            {{ splitFile.name }}<span v-if="splitPageCount"> · {{ splitPageCount }} pages</span>
-          </span>
-          <span v-if="splitPageCount" class="body-text text-text-secondary text-sm">
-            Selected {{ selectedSplitCount }} / {{ splitPageCount }}
-          </span>
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-col gap-2">
+            <span class="mono text-text-primary">
+              {{ splitFile.name }}<span v-if="splitPageCount"> · {{ splitPageCount }} pages</span>
+            </span>
+            <span v-if="splitPageCount" class="body-text text-text-secondary text-sm">
+              Selected {{ selectedSplitCount }} / {{ splitPageCount }}
+            </span>
+          </div>
+          <UiButton
+            type="button"
+            size="sm"
+            variant="quiet"
+            :disabled="isSplitting"
+            @click="resetSplitQueue"
+          >
+            Change PDF
+          </UiButton>
         </div>
 
         <!-- Instructions & Selection Controls -->
@@ -248,6 +269,7 @@
             Download selected pages (ZIP)
           </UiButton>
         </div>
+        </template>
       </WorkflowSection>
 
       <!-- Organize Workflow -->
@@ -260,23 +282,34 @@
         :supports-drop="true"
         @drop="handleOrganizeDropZoneDrop"
       >
-        <!-- Source PDF Selector -->
-        <PdfSourceSelector
-          :queue-items="pdfQueue"
-          :selected-id="organizeSourceId"
-          :disabled="isOrganizing"
-          @select="handleOrganizeSelection"
-          @clear="resetOrganize"
-        />
+        <!-- Empty State -->
+        <div v-if="!organizeFile" class="empty-state">
+          <Grid3x3 :size="48" :stroke-width="1" class="text-text-muted" />
+          <div class="empty-state__title">No PDF Selected</div>
+          <div class="empty-state__meta">Click a PDF from the queue above to get started</div>
+        </div>
 
+        <!-- File Selected -->
+        <template v-else>
         <!-- File Meta Info -->
-        <div v-if="organizeFile" class="flex flex-col gap-2">
-          <span class="mono text-text-primary">
-            {{ organizeFile.name }} · {{ formatFileSize(organizeFile.size) }}
-          </span>
-          <span v-if="organizeLastOutputName" class="body-text text-text-secondary text-sm">
-            Last output: {{ organizeLastOutputName }}
-          </span>
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-col gap-2">
+            <span class="mono text-text-primary">
+              {{ organizeFile.name }} · {{ formatFileSize(organizeFile.size) }}
+            </span>
+            <span v-if="organizeLastOutputName" class="body-text text-text-secondary text-sm">
+              Last output: {{ organizeLastOutputName }}
+            </span>
+          </div>
+          <UiButton
+            type="button"
+            size="sm"
+            variant="quiet"
+            :disabled="isOrganizing"
+            @click="resetOrganize"
+          >
+            Change PDF
+          </UiButton>
         </div>
 
         <!-- Instructions -->
@@ -313,6 +346,7 @@
         >
           Export Organised PDF
         </UiButton>
+        </template>
       </WorkflowSection>
 
       <!-- Compress Workflow -->
@@ -325,26 +359,37 @@
         :supports-drop="true"
         @drop="handleCompressDropZoneDrop"
       >
-        <!-- Source PDF Selector -->
-        <PdfSourceSelector
-          :queue-items="pdfQueue"
-          :selected-id="compressSourceId"
-          :disabled="isCompressing"
-          @select="handleCompressSelection"
-          @clear="resetCompression"
-        />
+        <!-- Empty State -->
+        <div v-if="!compressFile" class="empty-state">
+          <Gauge :size="48" :stroke-width="1" class="text-text-muted" />
+          <div class="empty-state__title">No PDF Selected</div>
+          <div class="empty-state__meta">Click a PDF from the queue above to get started</div>
+        </div>
 
+        <!-- File Selected -->
+        <template v-else>
         <!-- File Meta Info -->
-        <div v-if="compressFile" class="flex flex-col gap-2">
-          <span class="mono text-text-primary">
-            {{ compressFile.name }} · {{ formatFileSize(compressFile.size) }}
-          </span>
-          <span v-if="compressSavings" class="body-text text-text-secondary text-sm">
-            Saved {{ compressSavings.percent }} · {{ formatFileSize(compressSavings.savedBytes) }}
-          </span>
-          <span v-else-if="lastCompressedName" class="body-text text-text-secondary text-sm">
-            Last output: {{ lastCompressedName }}
-          </span>
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-col gap-2">
+            <span class="mono text-text-primary">
+              {{ compressFile.name }} · {{ formatFileSize(compressFile.size) }}
+            </span>
+            <span v-if="compressSavings" class="body-text text-text-secondary text-sm">
+              Saved {{ compressSavings.percent }} · {{ formatFileSize(compressSavings.savedBytes) }}
+            </span>
+            <span v-else-if="lastCompressedName" class="body-text text-text-secondary text-sm">
+              Last output: {{ lastCompressedName }}
+            </span>
+          </div>
+          <UiButton
+            type="button"
+            size="sm"
+            variant="quiet"
+            :disabled="isCompressing"
+            @click="resetCompression"
+          >
+            Change PDF
+          </UiButton>
         </div>
 
         <!-- Description -->
@@ -408,6 +453,7 @@
 
         <!-- Compression Report -->
         <CompressReport :stats="compressReport" />
+        </template>
       </WorkflowSection>
 
     </div>
@@ -428,7 +474,6 @@ import UiPanel from '@/components/ui/UiPanel.vue'
 import DropZone from '@/components/DropZone.vue'
 import WorkflowSection from '@/components/WorkflowSection.vue'
 import TabSelector from '@/components/TabSelector.vue'
-import PdfSourceSelector from '@/components/PdfSourceSelector.vue'
 import PdfPresetSelector from '@/components/PdfPresetSelector.vue'
 import PdfQueueList from '@/components/PdfQueueList.vue'
 import MergeList from '@/components/MergeList.vue'
@@ -441,7 +486,7 @@ import { useToastStore } from '@/app/stores/toast'
 import { pdfWorkerPool } from '@/workers/pdfWorkerPool'
 import { downloadAsZip, downloadFile, generateFileId } from '@/utils/file'
 import { formatFileSize } from '@/utils/format'
-import { FileText, Upload, Scissors, Gauge, Grid3x3, ListX, Layers } from 'lucide-vue-next'
+import { Upload, Scissors, Gauge, Grid3x3, Layers } from 'lucide-vue-next'
 import ImagePreviewModal from '@/components/ImagePreviewModal.vue'
 import type { Job, PdfCompressionStats } from '@/workers/types'
 
@@ -552,6 +597,7 @@ let organizeLoadToken = 0
 
 const isPageDragging = ref(false)
 const activeWorkflow = ref<'merge' | 'split' | 'organize' | 'compress'>('compress')
+const fileInput = ref<HTMLInputElement | null>(null)
 
 const workflowTabs = [
   { id: 'merge', label: 'Merge', icon: Layers },
@@ -747,12 +793,23 @@ const queueAssignments = computed(() => {
   return map
 })
 const isQueueLocked = computed(() => isMerging.value || isSplitting.value || isOrganizing.value || isCompressing.value)
+const activeQueueItem = computed(() => {
+  switch (activeWorkflow.value) {
+    case 'split':
+      return splitSourceId.value
+    case 'organize':
+      return organizeSourceId.value
+    case 'compress':
+      return compressSourceId.value
+    default:
+      return null
+  }
+})
 const queueDragItemId = ref<string | null>(null)
 const mergeDropActive = ref(false)
 const splitDropActive = ref(false)
 const organizeDropActive = ref(false)
 const compressDropActive = ref(false)
-// organizePickerOpen is now managed internally by PdfSourceSelector
 
 watch(compressPreset, (preset) => {
   const appliedStored = applyPresetDefaults(preset)
@@ -971,6 +1028,20 @@ function handleQueueFilesSelected(files: File[]) {
   addFilesToQueue(files)
 }
 
+function triggerFileInput() {
+  fileInput.value?.click()
+}
+
+function handleFileInputChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+  if (files.length > 0) {
+    addFilesToQueue(files)
+  }
+  // Reset input so same file can be selected again
+  if (target) target.value = ''
+}
+
 function hasFilePayload(event: DragEvent) {
   return Array.from(event.dataTransfer?.types ?? []).includes('Files')
 }
@@ -1077,6 +1148,25 @@ function addAllToMerge() {
   enqueueMergeFiles(items)
 }
 
+function handleQueueItemClick(item: PdfQueueItem) {
+  if (isQueueLocked.value) return
+
+  switch (activeWorkflow.value) {
+    case 'merge':
+      assignQueueItemToMerge(item.id)
+      break
+    case 'split':
+      handleSplitSelection(item.id)
+      break
+    case 'organize':
+      handleOrganizeSelection(item.id)
+      break
+    case 'compress':
+      handleCompressSelection(item.id)
+      break
+  }
+}
+
 function handleSplitSelection(id: string) {
   if (isSplitting.value) {
     toastStore.info('Split Running', 'Wait for extraction to finish before switching PDFs.')
@@ -1169,9 +1259,7 @@ function handleQueueDragEnd() {
   compressDropActive.value = false
 }
 
-// All picker state is now managed internally by PdfSourceSelector components
-
-// Merge drop zone drag handlers removed (now handled by WorkflowSection)
+// Merge drop zone drag handlers (workflow assignment)
 
 function handleMergeDropZoneDrop(event: DragEvent) {
   if (!isQueueDrag(event)) return
@@ -2110,7 +2198,50 @@ watch(organizePagesContainer, (root) => {
   }
 })
 
-// Picker state is now managed internally by PdfSourceSelector components
+// Auto-select single PDF when switching workflows or uploading
+function tryAutoSelectSinglePdf() {
+  if (pdfQueue.value.length !== 1 || isQueueLocked.value) return
+
+  const item = pdfQueue.value[0]
+  if (!item) return
+
+  const workflow = activeWorkflow.value
+
+  // Check if this workflow already has a file
+  const hasFile =
+    (workflow === 'split' && splitSourceId.value) ||
+    (workflow === 'organize' && organizeSourceId.value) ||
+    (workflow === 'compress' && compressSourceId.value)
+
+  if (!hasFile) {
+    // Auto-assign the single PDF
+    switch (workflow) {
+      case 'split':
+        handleSplitSelection(item.id)
+        toastStore.info('Auto-selected', `${item.file.name} ready to split`)
+        break
+      case 'organize':
+        handleOrganizeSelection(item.id)
+        toastStore.info('Auto-selected', `${item.file.name} ready to organize`)
+        break
+      case 'compress':
+        handleCompressSelection(item.id)
+        toastStore.info('Auto-selected', `${item.file.name} ready to compress`)
+        break
+    }
+  }
+}
+
+watch(activeWorkflow, () => {
+  tryAutoSelectSinglePdf()
+})
+
+watch(pdfQueue, (newQueue, oldQueue) => {
+  // Auto-select when queue goes from 0 → 1 (upload)
+  if (oldQueue.length === 0 && newQueue.length === 1) {
+    tryAutoSelectSinglePdf()
+  }
+})
 
 onBeforeUnmount(() => {
   disposeSplitObserver()

@@ -47,8 +47,19 @@ const emit = defineEmits<{
 const isDropping = ref(false)
 const dragCounter = ref(0)
 
+const QUEUE_DRAG_MIME = 'application/x-shifteo-queue-id'
+
+function isQueueDrag(event: DragEvent): boolean {
+  const types = Array.from(event.dataTransfer?.types ?? [])
+  return types.includes(QUEUE_DRAG_MIME)
+}
+
 function handleDragEnter(event: DragEvent) {
   if (!props.supportsDrop) return
+
+  // Only highlight for queue drags, not internal drags
+  if (!isQueueDrag(event)) return
+
   event.preventDefault()
   dragCounter.value++
   isDropping.value = true
@@ -56,6 +67,10 @@ function handleDragEnter(event: DragEvent) {
 
 function handleDragOver(event: DragEvent) {
   if (!props.supportsDrop) return
+
+  // Only highlight for queue drags
+  if (!isQueueDrag(event)) return
+
   event.preventDefault()
   isDropping.value = true
 }
@@ -71,6 +86,10 @@ function handleDragLeave() {
 
 function handleDrop(event: DragEvent) {
   if (!props.supportsDrop) return
+
+  // Only handle queue drags
+  if (!isQueueDrag(event)) return
+
   event.preventDefault()
   isDropping.value = false
   dragCounter.value = 0

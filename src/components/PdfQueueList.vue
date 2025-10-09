@@ -6,8 +6,13 @@
         v-for="item in items"
         :key="item.id"
         class="queue-item"
-        :class="{ 'queue-item--dragging': draggingId === item.id }"
+        :class="{
+          'queue-item--dragging': draggingId === item.id,
+          'queue-item--clickable': clickable,
+          'queue-item--active': activeItemId === item.id
+        }"
         :draggable="draggable && !locked"
+        @click="clickable && !locked ? $emit('click', item) : null"
         @dragstart="handleDragStart($event, item.id)"
         @dragend="handleDragEnd"
       >
@@ -82,6 +87,8 @@ interface Props {
   items: QueueItem[]
   locked?: boolean
   draggable?: boolean
+  clickable?: boolean
+  activeItemId?: string | null
   hint?: string
   badges?: Map<string, string[]>
   showPreview?: boolean
@@ -91,6 +98,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   locked: false,
   draggable: false,
+  clickable: false,
+  activeItemId: null,
   hint: '',
   badges: undefined,
   showPreview: true,
@@ -98,6 +107,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
+  click: [item: QueueItem]
   preview: [item: QueueItem]
   download: [item: QueueItem]
   remove: [id: string]
@@ -155,11 +165,26 @@ function getItemBadges(id: string): string[] {
               box-shadow var(--motion-fast) ease;
 }
 
+.queue-item--clickable {
+  cursor: pointer;
+}
+
 .queue-item:hover {
   border-color: var(--color-line-key);
   background: rgba(255, 255, 255, 0.02);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.queue-item--clickable:hover {
+  border-color: var(--color-acc-error);
+  box-shadow: 0 2px 12px rgba(255, 92, 92, 0.2);
+}
+
+.queue-item--active {
+  border-color: var(--color-acc-error);
+  background: rgba(255, 92, 92, 0.05);
+  box-shadow: 0 0 0 1px rgba(255, 92, 92, 0.3);
 }
 
 .queue-item:active {
