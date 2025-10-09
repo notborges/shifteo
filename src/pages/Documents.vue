@@ -486,6 +486,7 @@ import { useToastStore } from '@/app/stores/toast'
 import { pdfWorkerPool } from '@/workers/pdfWorkerPool'
 import { downloadAsZip, downloadFile, generateFileId } from '@/utils/file'
 import { formatFileSize } from '@/utils/format'
+import { storeQueueJob, restoreQueueJobs, removeQueueJob, clearAllTempFiles } from '@/utils/idb'
 import { Upload, Scissors, Gauge, Grid3x3, Layers } from 'lucide-vue-next'
 import ImagePreviewModal from '@/components/ImagePreviewModal.vue'
 import type { Job, PdfCompressionStats } from '@/workers/types'
@@ -702,12 +703,26 @@ function removeAdvancedOptionsForPreset(preset: CompressPresetKey) {
   writeStoredAdvancedOptions()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // Load compress advanced options
   loadStoredAdvancedOptions()
   const appliedStored = applyPresetDefaults(compressPreset.value)
   if (appliedStored) {
     compressAdvancedDirty.value = true
     persistAdvancedOptions()
+  }
+
+  // Restore PDF queue from IndexedDB
+  try {
+    const restored = await restoreQueueJobs('pdf')
+    pdfQueue.value = restored.map(item => ({
+      id: item.id,
+      file: item.file,
+      thumbnail: item.thumbnailUrl || null,
+      loading: false
+    }))
+  } catch (error) {
+    console.error('Failed to restore PDF queue:', error)
   }
 })
 
@@ -1096,11 +1111,29 @@ function addFilesToQueue(files: File[]) {
     pdfQueue.value = [...pdfQueue.value, item]
 
     generatePdfThumbnail(file)
-      .then((url) => {
+      .then(async (url) => {
         const target = pdfQueue.value.find(entry => entry.id === item.id)
         if (target) {
           target.thumbnail = url
           target.loading = false
+
+          // Store in IndexedDB for persistence
+          let thumbnailBlob: Blob | undefined
+          if (url) {
+            try {
+              const response = await fetch(url)
+              thumbnailBlob = await response.blob()
+            } catch (e) {
+              console.warn('Failed to convert thumbnail to blob')
+            }
+          }
+
+          await storeQueueJob({
+            id: item.id,
+            file,
+            queueType: 'pdf',
+            thumbnailBlob
+          })
         }
       })
       .catch(() => {
@@ -1317,7 +1350,7 @@ function downloadQueueItem(item: PdfQueueItem) {
   void downloadFile(item.file, item.file.name)
 }
 
-function removeQueueItem(id: string) {
+async function removeQueueItem(id: string) {
   if (isQueueLocked.value) return
 
   const item = findQueueItem(id)
@@ -1340,10 +1373,14 @@ function removeQueueItem(id: string) {
   }
 
   pdfQueue.value = pdfQueue.value.filter(entry => entry.id !== id)
+
+  // Remove from IndexedDB
+  await removeQueueJob(id)
+
   toastStore.info('Removed from Queue', `${item.file.name} removed`)
 }
 
-function clearPdfQueue() {
+async function clearPdfQueue() {
   if (isQueueLocked.value) return
 
   pdfQueue.value = []
@@ -1363,6 +1400,9 @@ function clearPdfQueue() {
   if (!isCompressing.value) {
     resetCompression()
   }
+
+  // Clear from IndexedDB
+  await clearAllTempFiles()
 
   toastStore.info('Queue Cleared', 'All queued PDFs removed')
 }
@@ -1703,8 +1743,8 @@ async function loadSplitFile(file: File, sourceId?: string) {
 
     queueMicrotask(() => {
       if (requestId !== splitLoadToken) return
-      loadSplitPageThumbnail(1)
-      for (let i = 2; i <= Math.min(total, 8); i++) {
+      // Load all thumbnails (lazy-loading broken after component refactor)
+      for (let i = 1; i <= total; i++) {
         loadSplitPageThumbnail(i)
       }
     })
@@ -1978,7 +2018,8 @@ async function loadOrganizeFile(file: File, sourceId?: string) {
 
     queueMicrotask(() => {
       if (requestId !== organizeLoadToken) return
-      for (let i = 1; i <= Math.min(total, 8); i++) {
+      // Load all thumbnails (lazy-loading broken after component refactor)
+      for (let i = 1; i <= total; i++) {
         loadOrganizePageThumbnail(i)
       }
     })
@@ -2214,19 +2255,16 @@ function tryAutoSelectSinglePdf() {
     (workflow === 'compress' && compressSourceId.value)
 
   if (!hasFile) {
-    // Auto-assign the single PDF
+    // Auto-assign the single PDF (silently - visual feedback is enough)
     switch (workflow) {
       case 'split':
         handleSplitSelection(item.id)
-        toastStore.info('Auto-selected', `${item.file.name} ready to split`)
         break
       case 'organize':
         handleOrganizeSelection(item.id)
-        toastStore.info('Auto-selected', `${item.file.name} ready to organize`)
         break
       case 'compress':
         handleCompressSelection(item.id)
-        toastStore.info('Auto-selected', `${item.file.name} ready to compress`)
         break
     }
   }

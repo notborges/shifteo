@@ -69,11 +69,12 @@
               <UiButton
                 v-if="queueStore.completedJobs.length > 0"
                 variant="quiet"
+                tone="warning"
                 size="sm"
                 type="button"
                 @click="queueStore.clearCompleted()"
               >Clear Completed</UiButton>
-              <UiButton variant="quiet" size="sm" type="button" @click="queueStore.clearAll()">Clear All</UiButton>
+              <UiButton variant="quiet" tone="warning" size="sm" type="button" @click="queueStore.clearAll()">Clear All</UiButton>
             </div>
           </div>
         </div>
@@ -743,6 +744,7 @@ async function handleFilesSelected(files: File[]) {
     await storeQueueJob({
       id: jobId,
       file,
+      queueType: 'image',
       originalDimensions: dimensions || undefined,
       thumbnailBlob,
       sourcePage: options.pageIndex
@@ -754,6 +756,12 @@ async function handleFilesSelected(files: File[]) {
   }
 
   for (const file of files) {
+    // Reject PDFs explicitly
+    if (file.type === 'application/pdf') {
+      toastStore.error('Wrong File Type', `${file.name} is a PDF. Use the Documents page for PDFs.`)
+      continue
+    }
+
     if (!isFormatSupported(file)) {
       toastStore.error('Unsupported Format', `${file.name} is not a supported image format`)
       continue

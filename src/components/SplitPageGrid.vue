@@ -85,14 +85,20 @@ function handlePointerUp() {
 <style scoped>
 .split-page-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: var(--space-12);
-  max-height: 320px;
+  max-height: 380px;
   overflow-y: auto;
   padding: var(--space-12);
   border: 1px solid var(--color-line-key);
   border-radius: var(--radius-panel);
   background: var(--color-bg-inset);
+}
+
+@media (min-width: 1280px) {
+  .split-page-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 }
 
 .split-page-card {
@@ -130,8 +136,8 @@ function handlePointerUp() {
 }
 
 .split-page-card__thumb {
-  width: 70px;
-  height: 96px;
+  width: 90px;
+  height: 120px;
   border-radius: var(--radius-chip);
   overflow: hidden;
   background: var(--color-bg-inset);

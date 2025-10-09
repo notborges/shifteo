@@ -17,6 +17,7 @@ interface ShifteoDB extends DBSchema {
       metadata?: {
         filename?: string
         type?: string
+        queueType?: 'image' | 'pdf'
         originalDimensions?: { width: number; height: number }
         thumbnailBlob?: Blob
         sourcePage?: number
@@ -229,6 +230,7 @@ export async function getStorageStats(): Promise<{
 export async function storeQueueJob(job: {
   id: string
   file: File
+  queueType: 'image' | 'pdf'
   originalDimensions?: { width: number; height: number }
   thumbnailBlob?: Blob
   sourcePage?: number
@@ -242,6 +244,7 @@ export async function storeQueueJob(job: {
       metadata: {
         filename: job.file.name,
         type: job.file.type,
+        queueType: job.queueType,
         originalDimensions: job.originalDimensions,
         thumbnailBlob: job.thumbnailBlob,
         sourcePage: job.sourcePage
@@ -259,7 +262,7 @@ export async function storeQueueJob(job: {
 /**
  * Restore all queue jobs from IndexedDB (options not restored - they come from current UI)
  */
-export async function restoreQueueJobs(): Promise<Array<{
+export async function restoreQueueJobs(type?: 'image' | 'pdf'): Promise<Array<{
   id: string
   file: File
   originalDimensions?: { width: number; height: number }
@@ -270,7 +273,12 @@ export async function restoreQueueJobs(): Promise<Array<{
     const db = await getDB()
     const records = await db.getAll('tempFiles')
 
-    return records.map(record => {
+    // Filter by queue type if specified
+    const filtered = type
+      ? records.filter(r => r.metadata?.queueType === type)
+      : records
+
+    return filtered.map(record => {
       const thumbnailUrl = record.metadata?.thumbnailBlob
         ? URL.createObjectURL(record.metadata.thumbnailBlob)
         : undefined

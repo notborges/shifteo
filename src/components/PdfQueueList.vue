@@ -53,15 +53,14 @@
             <Download :size="16" />
           </UiButton>
           <UiButton
-            variant="quiet"
-            tone="warning"
+            variant="destructive"
             size="sm"
             icon-only
             title="Remove from queue"
             :disabled="locked"
             @click="$emit('remove', item.id)"
           >
-            <Trash2 :size="16" />
+            <X :size="16" />
           </UiButton>
         </div>
       </div>
@@ -73,7 +72,7 @@
 import { ref } from 'vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
-import { FileText, Eye, Download, Trash2 } from 'lucide-vue-next'
+import { FileText, Eye, Download, X } from 'lucide-vue-next'
 import { formatFileSize } from '@/utils/format'
 
 interface QueueItem {

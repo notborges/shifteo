@@ -63,8 +63,8 @@ onMounted(async () => {
     console.log(`[App] Cleaned ${cleaned} old files from storage`)
   }
 
-  // Restore queue once at app level
-  const restored = await restoreQueueJobs()
+  // Restore IMAGE queue only (PDFs restored in Documents.vue)
+  const restored = await restoreQueueJobs('image')
   if (restored.length > 0) {
     for (const item of restored) {
       queueStore.restoreJob({
@@ -78,7 +78,7 @@ onMounted(async () => {
       })
     }
 
-    console.log(`[App] Restored ${restored.length} files with original IDs`)
+    console.log(`[App] Restored ${restored.length} image files with original IDs`)
 
     // Show toast only if on images page
     if (route.path === '/images') {
