@@ -1,0 +1,128 @@
+:root {
+  --font-display: 'Anybody', 'Space Mono', monospace;
+  --font-body: 'Instrument Sans', system-ui, sans-serif;
+  --font-mono: 'Space Mono', monospace;
+
+  --duration-normal: 250ms;
+  --ease-immersive: cubic-bezier(0.23, 1, 0.32, 1);
+
+  --accent-primary: var(--immersive-accent);
+  --immersive-accent: #8da9d0;
+  --immersive-accent-rgb: 141, 169, 208;
+  --immersive-accent-soft: rgba(var(--immersive-accent-rgb), 0.12);
+  --immersive-accent-hover: rgba(var(--immersive-accent-rgb), 0.2);
+  --immersive-accent-border: rgba(var(--immersive-accent-rgb), 0.3);
+  --immersive-accent-border-hover: rgba(var(--immersive-accent-rgb), 0.5);
+  --immersive-success: #83d3ad;
+  --immersive-text-bright: rgba(232, 237, 242, 0.94);
+  --immersive-text-hover: rgba(232, 237, 242, 0.86);
+  --immersive-text-secondary: rgba(220, 227, 234, 0.8);
+  --immersive-text-soft: rgba(211, 220, 229, 0.72);
+  --immersive-text: rgba(203, 213, 223, 0.64);
+  --immersive-text-quiet: rgba(194, 205, 216, 0.58);
+  --immersive-text-dim: rgba(184, 196, 208, 0.52);
+  --immersive-text-muted: rgba(174, 187, 200, 0.46);
+  --immersive-text-subtle: rgba(164, 178, 192, 0.38);
+  --immersive-text-faint: rgba(154, 169, 184, 0.3);
+  --immersive-ember: rgba(199, 210, 221, 0.54);
+  --immersive-ember-hover: rgba(213, 222, 231, 0.72);
+  --immersive-ember-bright: rgba(209, 220, 231, 0.46);
+  --immersive-ember-soft: rgba(199, 210, 221, 0.3);
+  --immersive-ember-muted: rgba(190, 202, 214, 0.34);
+  --immersive-ember-faint: rgba(181, 193, 205, 0.24);
+  --immersive-ember-whisper: rgba(172, 185, 198, 0.18);
+  --immersive-ember-surface: rgba(190, 202, 214, 0.06);
+  --immersive-border: rgba(203, 213, 223, 0.14);
+  --immersive-border-hover: rgba(203, 213, 223, 0.28);
+  --immersive-surface: rgba(255, 255, 255, 0.045);
+
+  --bg-void: #101216;
+  --ink-primary: #f1f3f5;
+  --ink-secondary: #b8c0c9;
+  --ink-muted: #929ca8;
+  --ink-faint: #343a43;
+  --ink-border: #4a535e;
+
+  --info: #60a5fa;
+  --success: #4fffb0;
+  --warning: #fbbf24;
+  --error: #ff6b6b;
+  --radius-md: 10px;
+
+  color-scheme: dark;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 15px;
+  background: var(--bg-void);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--bg-void);
+  color: var(--ink-primary);
+  font-family: var(--font-body);
+  line-height: 1.5;
+}
+
+#app,
+.app {
+  min-height: 100vh;
+}
+
+.app {
+  height: 100vh;
+  overflow: hidden;
+}
+
+::selection {
+  background: var(--immersive-accent-soft);
+  color: var(--ink-primary);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--ink-faint);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-muted);
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(230, 235, 240, 0.4);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-decoration: none;
+  transition: color var(--duration-normal) ease;
+}
+
+.logo:hover {
+  color: rgba(230, 235, 240, 0.7);
+}
+
+.logo-accent {
+  color: var(--accent-primary);
+}
